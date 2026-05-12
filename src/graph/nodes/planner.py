@@ -28,10 +28,21 @@ def planner_node(state: AnalysisState) -> dict:
     response = llm.invoke(messages)
     parsed = extract_json(response.content)
 
+    competitors = parsed.get("competitors", [])
+    dimensions = parsed.get("dimensions", ["positioning", "features", "pricing", "reviews"])
+    outline = parsed.get("outline", "")
+
+    if not competitors:
+        # Fallback: extract from search results
+        competitors = [
+            {"name": r["title"].split("|")[0].strip(), "website": r["url"]}
+            for r in search_results[:5]
+        ]
+
     return {
-        "confirmed_competitors": parsed["competitors"],
-        "analysis_dimensions": parsed["dimensions"],
-        "report_outline": parsed["outline"],
+        "confirmed_competitors": competitors,
+        "analysis_dimensions": dimensions,
+        "report_outline": outline,
         "current_stage": "collecting",
-        "stage_status": f"Found {len(parsed['competitors'])} competitors, starting collection",
+        "stage_status": f"Found {len(competitors)} competitors, starting collection",
     }

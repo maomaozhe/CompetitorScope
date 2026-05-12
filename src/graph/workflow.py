@@ -1,4 +1,4 @@
-"""LangGraph workflow — serial MVP pipeline."""
+"""LangGraph workflow — parallel fan-out MVP pipeline."""
 
 from langgraph.graph import StateGraph, START, END
 
@@ -11,16 +11,31 @@ def build_workflow():
 
     # Nodes
     graph.add_node("planner", planner.planner_node)
-    graph.add_node("collector", collector.collector_node)
-    graph.add_node("analyst", analyst.analyst_node)
+    graph.add_node("collect_competitor", collector.collect_competitor)
+    graph.add_node("join_collectors", collector.join_collectors)
+    graph.add_node("analyze_competitor", analyst.analyze_competitor)
+    graph.add_node("join_analysts", analyst.join_analysts)
     graph.add_node("comparator", comparator.comparator_node)
     graph.add_node("writer", writer.writer_node)
 
-    # Edges — linear pipeline
+    # Linear start
     graph.add_edge(START, "planner")
-    graph.add_edge("planner", "collector")
-    graph.add_edge("collector", "analyst")
-    graph.add_edge("analyst", "comparator")
+
+    # Planner → fan out collectors (Send API)
+    graph.add_conditional_edges("planner", collector.fan_out_collectors)
+
+    # Collectors all feed back → join_collectors (barrier, no routing needed)
+    # The join fires once via the finished_collectors set in the conditional from planner
+    graph.add_edge("collect_competitor", "join_collectors")
+
+    # Join → fan out analysts
+    graph.add_conditional_edges("join_collectors", analyst.fan_out_analysts)
+
+    # Analysts → join_analysts (barrier)
+    graph.add_edge("analyze_competitor", "join_analysts")
+
+    # Join → comparator → writer → end
+    graph.add_edge("join_analysts", "comparator")
     graph.add_edge("comparator", "writer")
     graph.add_edge("writer", END)
 

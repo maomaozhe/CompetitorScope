@@ -6,10 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: MVP verified (Step 0-4 complete, Step 5+ pending).
-- Step 0-4: 5-agent serial pipeline ✅
+**Current Status**: MVP verified.
+- Step 0-4: docs, scaffold, core models/tools, 5-agent serial pipeline ✅
+- Out-of-order MVP work: basic FastAPI API + basic Next.js UI ✅
 - Step 5: Parallel fan-out via Send API ❌ (not yet implemented)
-- Step 6+: HITL integration, persistent storage ❌
+- Step 6+: HITL integration, persistent storage, evidence-grade citations ❌
+
+`doc/memory-bank/progress.md` is the source of truth for current implementation status.
+`doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.
 
 ## Project Architecture
 
@@ -48,7 +52,7 @@ src/
 START → Planner → Collector → Analyst → Comparator → Writer → END
          │          │           │          │          │
          ▼          ▼           ▼          ▼          ▼
-    发现竞品      并发采集      并发分析     横向对比    报告输出
+    发现竞品      数据采集      结构化分析     横向对比    报告输出
     生成大纲      (当前串行)    (当前串行)   洞察提炼    (Markdown)
 ```
 
@@ -99,10 +103,11 @@ class AnalysisState(TypedDict, total=False):
 | GET | `/api/v1/reports/{run_id}` | Get full report (markdown + bibliography) |
 | GET | `/api/v1/health` | Health check |
 
-## MVP vs Future (Step 6+)
+## MVP vs Future
 
 **MVP (Current)**:
 - 5 agents run in **serial** (not parallel)
+- Basic FastAPI API and Next.js UI exist, but they are MVP-level and not the full Step 7/8 target
 - No HITL (Human-In-The-Loop) interruptions
 - In-memory run store (no persistent DB)
 - Report quality: functional but citations need improvement
@@ -110,6 +115,7 @@ class AnalysisState(TypedDict, total=False):
 **Planned Enhancements**:
 - Step 5: Parallel fan-out (Collector×N, Analyst×N concurrently via Send API)
 - Step 6: HITL with 4 interrupt points (competitor confirm, outline confirm, data supplement, writer follow-up)
+- Step 7/8 hardening: full API surface, evidence endpoints, robust SSE mapping, production-quality UI states
 - Better report citations with evidence chain
 - Persistent storage (SQLModel + SQLite)
 
@@ -133,6 +139,22 @@ class AnalysisState(TypedDict, total=False):
 - LangGraph 的 `interrupt()` 只能在节点内部调用，不能替代条件边
 - `operator.add` reducer 保证并发追加时数据不丢失，但前提是字段类型必须正确声明
 - 大产物（raw_content）应落文件而不是放 state，避免 checkpoint 膨胀
+
+### Step 5 Fan-out 实现教训
+
+1. **并发不一定省时间** — 当 LLM 调用是主要瓶颈（Planner/Analyst/Writer），真正的并行收益只在 Collector 的 IO 操作（网络抓取）。Planner/Analyst 的 LLM 调用必须等前一步完成，并发收益有限。
+
+2. **Send API 与 add_edge 混用有坑** — Send 启动的 N 个节点，每个都通过 `add_edge(node, join)` 触发 join 节点 → N 个 join 并发执行，同时写 `current_stage`（LastValue channel）→ `InvalidUpdateError`。解法：用 set union reducer + `add_conditional_edges` 路由，或 Send 汇合用单独 join 节点。
+
+3. **`operator.add` 不支持 set** — 集合并发写要用自定义 reducer：
+   ```python
+   def _union_sets(a, b): return (a or set()) | (b or set())
+   finished_collectors: Annotated[set[str], _union_sets]
+   ```
+
+4. **测试周期太长** — 每次端到端运行 ~12min（LLM 慢），导致迭代成本高。需要在 `scripts/` 下建立 `test_fan_out_small.py` 用 mock LLM + 假数据快速验证逻辑，再跑真实 Pipeline。
+
+5. **`stream_output=["all"]` 不返回 START 事件** — 用 `workflow.invoke`（返回最终 state）做端到端，用 `workflow.stream` 逐节点观察状态更新，不要混用。
 
 ## References
 
