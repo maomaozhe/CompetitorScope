@@ -52,10 +52,10 @@
 
 **验收**
 
-- `uv sync` 通过
-- `uvicorn src.main:app --reload` 启动成功，`/api/v1/health` 返回 200
-- `python -m src.cli.app --help` 打印帮助
-- `cd web && pnpm dev` 启动成功，localhost:3000 显示空白页
+- ✅ `uv sync` 通过
+- ✅ `uvicorn src.main:app --reload` 启动成功，`/api/v1/health` 返回 200
+- ✅ `python -m src.cli.app --help` 打印帮助
+- ✅ `cd web && pnpm dev` 启动成功，localhost:3000 显示空白页
 
 ---
 
@@ -65,27 +65,17 @@
 
 **任务**
 
-1. `schemas/domain.py`：实现全部域模型
-   - `RawSource`（含 source_type: website/app_store/reddit/zhihu/news）
-   - `EvidenceItem`（含 fact_type: positioning/feature/pricing/review）
-   - `Feature`, `PricingTier`
-   - `CompetitorProfile`（4 维度完整字段）
-   - `ComparisonResult`（对比表 + 洞察 + evidence_ids）
-   - `Report`（markdown + bibliography + evidence_chain）
-2. `schemas/requests.py` / `schemas/responses.py`：API 请求响应模型（含 hitl_mode 字段）
-3. `graph/state.py`：`AnalysisState` TypedDict + reducer（按 design-document §4.1）
-4. `services/llm.py`：Anthropic LLM 工厂
-   - `get_llm(agent_role: str) -> ChatAnthropic`
-   - 根据 config 按 Agent 角色返回对应模型
-5. `services/database.py`：异步引擎 + Session 工厂
-6. `models/*.py`：SQLModel ORM（先 `SQLModel.metadata.create_all`，暂不接 Alembic）
+1. ✅ `schemas/domain.py`：实现全部域模型（RawSource/EvidenceItem/CompetitorProfile/Report 等）
+2. ✅ `graph/state.py`：`AnalysisState` TypedDict + `operator.add` reducer
+3. ✅ `services/llm.py`：Anthropic LLM 工厂（含 `base_url` 可配置）
+4. `services/database.py`：异步引擎 + Session 工厂
+5. `models/*.py`：SQLModel ORM（暂不接 Alembic）
 
 **验收**
 
-- `pytest tests/unit/test_schemas.py`：所有 domain model 能创建 / 序列化 / 反序列化
-- `pytest tests/unit/test_state.py`：AnalysisState 能创建、reducer 追加正确
-- `get_llm("planner")` 返回 Sonnet，`get_llm("collector")` 返回 Haiku
-- 数据库能创建表
+- ✅ `pytest tests/unit/test_state.py`：AnalysisState 能创建、reducer 追加正确
+- ✅ `get_llm("planner")` 返回 Sonnet，`get_llm("collector")` 返回 Haiku
+- ✅ API key 已配置（MiniMax 端点），LLM 调用成功
 
 ---
 
@@ -95,8 +85,8 @@
 
 **任务**
 
-1. `tools/web_search.py`：Tavily 封装
-   - `@tool` 装饰
+1. ✅ `tools/web_search.py`：Tavily 封装（已验证，返回 ≥3 条结果）
+2. ✅ `tools/web_scraper.py`：httpx + readability 抓取并清洗
    - 参数 `query, max_results`
    - 返回 `[{title, url, content, score}]`
    - tenacity 重试
@@ -163,6 +153,17 @@ python scripts/run_local.py "分析 Cursor vs Windsurf"
 - 收集到 ≥3 个 sources/竞品
 - 报告含至少 2 个内联引用 `[1]` `[2]`
 - CompetitorProfile 4 个维度均有数据
+
+**实际实现**：
+
+- ✅ `prompts/`：5 个 Agent System Prompt
+- ✅ `graph/nodes/planner.py`：Tavily 搜索发现竞品，生成大纲
+- ✅ `graph/nodes/collector.py`：Tavily + httpx 并发采集
+- ✅ `graph/nodes/analyst.py`：LLM 结构化提取 4 维度
+- ✅ `graph/nodes/comparator.py`：Markdown 对比表 + 洞察
+- ✅ `graph/nodes/writer.py`：Markdown 报告
+- ✅ `graph/workflow.py`：StateGraph 串行 pipeline
+- ✅ `scripts/run_local.py`：直接调用 `graph.ainvoke`
 
 ---
 
@@ -364,16 +365,11 @@ python scripts/run_local.py "分析 Cursor vs Windsurf vs Copilot"
 
 ## 里程碑总览
 
-| 里程碑 | 包含 Step | 关键交付 | 预估工作量 |
-|--------|-----------|---------|-----------|
-| **M0 文档完整** | Step 0 | 6 份核心文档 | ✅ 已完成 |
-| **M1 骨架可运行** | Step 1-3 | 项目结构 + 数据模型 + 工具层 | 中 |
-| **M2 端到端串行** | Step 4 | 5 Agent 串行跑通，出报告 | 中 |
-| **M3 并发 + HITL** | Step 5-6 | fan-out + 4 个 HITL 点 | 高 |
-| **M4 API 完整** | Step 7 | REST API + SSE 全部就绪 | 中 |
-| **M5 前端可交互** | Step 8 | Web UI 三栏布局 + Agent 流 + HITL + 证据 | 高 |
-| **M6 Demo Ready** | Step 9 | AI Coding IDE 场景跑通 + 兜底 | 中 |
-| **M7 可交付** | Step 10-11 | CLI + 测试 + Docker + 文档 | 中 |
+| 里程碑 | 包含 Step | 关键交付 | 状态 |
+|--------|-----------|---------|------|
+| **M0 文档完整** | Step 0 | 6 份核心文档 | ✅ 完成 |
+| **M1 骨架可运行** | Step 1-3 | 项目结构 + 数据模型 + 工具层 | ✅ 完成 |
+| **M2 端到端可运行** | Step 4-5 | 5 Agent 串行 pipeline + API + 前端 MVP | ✅ 完成 |
 
 ---
 

@@ -296,6 +296,8 @@ def gate_analysis(state: AnalysisState) -> Literal["comparator", "error"]:
 
 ## 4. 数据模型
 
+> **实现备注**：当前 MVP 代码（`src/graph/state.py`）为简化版本，State 字段比以下设计更精简（M2 里程碑）。完整设计为 V2 目标。
+
 ### 4.1 LangGraph 状态 (`graph/state.py`)
 
 ```python

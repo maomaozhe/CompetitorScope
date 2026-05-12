@@ -142,7 +142,7 @@ dev = [
   - SSR 对比赛 demo 不重要，但开发体验好
   - TypeScript 类型安全，前后端 schema 可共享
 
-### 4.3 LLM：Anthropic Claude
+### 4.3 LLM：Anthropic Claude（经 MiniMax 兼容端点）
 
 | Agent | 模型 | 理由 |
 |-------|------|------|
@@ -153,7 +153,8 @@ dev = [
 | Writer | Claude Sonnet | 报告写作质量优先 |
 
 - 通过 LangChain 的 `ChatAnthropic` 统一封装
-- 每个 Agent 独立配置模型
+- 使用 MiniMax 兼容端点 `https://api.minimaxi.com/anthropic/v1`，`base_url` 可配置
+- 每个 Agent 独立配置模型（见 `src/config.py` 的 `_MODEL_MAP`）
 - **后续可加 OpenAI / Google**：改为 `BaseChatModel` 工厂模式即可扩展
 
 ### 4.4 搜索：Tavily
@@ -164,13 +165,13 @@ dev = [
 
 ### 4.5 数据源策略
 
-| 数据源 | 获取方式 | 覆盖维度 | MVP 优先级 |
-|--------|---------|---------|-----------|
-| 竞品官网 | httpx + readability | 定位/功能/定价 | P0 |
-| Tavily 搜索 | Tavily API | 全维度补充 | P0 |
-| Reddit | PRAW (Reddit API) | 用户口碑 | P0 |
-| 知乎 | httpx 抓取搜索结果页 | 用户口碑(中文) | P1 |
-| App Store / Google Play | httpx 抓取评论页 | 用户口碑 | P1 |
+| 数据源 | 获取方式 | 覆盖维度 | MVP 状态 |
+|--------|---------|---------|---------|
+| 竞品官网 | httpx + readability | 定位/功能/定价 | ✅ 已实现 |
+| Tavily 搜索 | Tavily API | 全维度补充 | ✅ 已实现 |
+| Reddit | **待实现** | 用户口碑 | P2 |
+| 知乎 | **待实现** | 用户口碑(中文) | P2 |
+| App Store / Google Play | **待实现** | 用户口碑 | P2 |
 | HN / X (Twitter) | Tavily 搜索覆盖 | 用户口碑 | P2 (通过 Tavily 间接获取) |
 | 小红书 | **不做** | — | — (反爬风险) |
 
@@ -202,18 +203,14 @@ dev = [
 ```bash
 # .env.example
 
-# LLM — Anthropic (主力)
+# LLM — Anthropic (主力) — 使用 MiniMax 兼容端点
 ANTHROPIC_API_KEY=
+ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic/v1
 
 # 搜索
 TAVILY_API_KEY=
 
-# 社区数据
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
-REDDIT_USER_AGENT=competitor-scope/0.1
-
-# LLM 配置
+# Per-agent 模型配置
 PLANNER_MODEL=claude-sonnet-4-6
 COLLECTOR_MODEL=claude-haiku-4-5-20251001
 ANALYST_MODEL=claude-haiku-4-5-20251001
