@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: MVP verified.
+**Current Status**: Step 6 HITL + CLI verified.
 - Step 0-4: docs, scaffold, core models/tools, 5-agent serial pipeline ✅
-- Out-of-order MVP work: basic FastAPI API + basic Next.js UI ✅
-- Step 5: Parallel fan-out via Send API ❌ (not yet implemented)
-- Step 6+: HITL integration, persistent storage, evidence-grade citations ❌
+- Step 5: Parallel fan-out via Send API ✅
+- Step 6: HITL integration (interrupt/checkpoint, 3 interrupt types, CLI interactive) ✅
+- Step 7+: FastAPI hardening, persistent storage, evidence-grade citations ❌
 
 `doc/memory-bank/progress.md` is the source of truth for current implementation status.
 `doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.
@@ -155,6 +155,16 @@ class AnalysisState(TypedDict, total=False):
 4. **测试周期太长** — 每次端到端运行 ~12min（LLM 慢），导致迭代成本高。需要在 `scripts/` 下建立 `test_fan_out_small.py` 用 mock LLM + 假数据快速验证逻辑，再跑真实 Pipeline。
 
 5. **`stream_output=["all"]` 不返回 START 事件** — 用 `workflow.invoke`（返回最终 state）做端到端，用 `workflow.stream` 逐节点观察状态更新，不要混用。
+
+### Step 6 HITL 实现教训
+
+1. **MemorySaver 无法序列化 Pydantic model** — 解法：在写入 state 前 `model → dict`（`dump_model`），读出时 `dict → model`（`restore_*` helpers）。见 `src/graph/serialization.py`。
+
+2. **Interrupt 只在节点内部调用** — 不能在 conditional edge 函数里调用 interrupt，必须在 node 函数里。
+
+3. **Planner 两阶段拆分** — `planner_discover`（竞品发现+HITL确认）和 `planner_outline`（大纲生成+HITL确认）串行，用 `add_edge` 连接。
+
+4. **Collector 并行内的 interrupt** — 避免在 Send fan-out 内部 interrupt，改为 join 节点统一处理（汇总低 source 竞品后一次性 interrupt）。
 
 ## References
 
