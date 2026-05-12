@@ -1,6 +1,7 @@
 """LLM factory — returns ChatAnthropic configured per agent role."""
 
 import json
+import logging
 import re
 from langchain_anthropic import ChatAnthropic
 
@@ -13,6 +14,12 @@ _MODEL_MAP = {
     "comparator": settings.comparator_model,
     "writer": settings.writer_model,
 }
+logger = logging.getLogger(__name__)
+
+
+def _normalize_base_url(base_url: str) -> str:
+    """Anthropic SDK appends /v1/messages; tolerate env values that include /v1."""
+    return base_url.removesuffix("/").removesuffix("/v1") if base_url else base_url
 
 
 def extract_text(content) -> str:
@@ -53,10 +60,12 @@ def extract_json(content) -> dict:
 
 def get_llm(role: str, **kwargs) -> ChatAnthropic:
     model = _MODEL_MAP.get(role, settings.planner_model)
+    base_url = _normalize_base_url(settings.anthropic_base_url)
+    logger.info("llm: create role=%s model=%s base_url=%s", role, model, base_url)
     return ChatAnthropic(
         model=model,
         api_key=settings.anthropic_api_key,
-        base_url=settings.anthropic_base_url,
+        base_url=base_url,
         max_tokens=4096,
         **kwargs,
     )

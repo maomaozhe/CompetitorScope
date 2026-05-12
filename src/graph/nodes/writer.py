@@ -1,18 +1,30 @@
 """Writer node — generates the final Markdown report."""
 
+import logging
+
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.graph.state import AnalysisState
+from src.graph.serialization import (
+    comparison_result,
+    competitor_profiles,
+    dump_model,
+    evidence_items,
+)
 from src.prompts.writer import WRITER_SYSTEM
 from src.services.llm import get_llm, extract_text
 from src.schemas.domain import Report
 
 
+logger = logging.getLogger(__name__)
+
+
 def writer_node(state: AnalysisState) -> dict:
-    profiles = state.get("competitor_profiles", [])
-    comparison = state.get("comparison_result")
-    evidence = state.get("evidence_items", [])
+    profiles = competitor_profiles(state.get("competitor_profiles", []))
+    comparison = comparison_result(state.get("comparison_result"))
+    evidence = evidence_items(state.get("evidence_items", []))
     outline = state.get("report_outline", "")
+    logger.info("writer: start profiles=%d evidence=%d", len(profiles), len(evidence))
 
     # Build competitor summaries
     lines = []
@@ -41,6 +53,7 @@ def writer_node(state: AnalysisState) -> dict:
             bibliography.append({"url": e.source_url, "title": e.source_url})
 
     llm = get_llm("writer")
+    logger.info("writer: invoking LLM")
     resp = llm.invoke([
         SystemMessage(content=WRITER_SYSTEM),
         HumanMessage(content=f"""Report outline:
@@ -69,9 +82,10 @@ Recommendations:
         content_markdown=extract_text(resp.content),
         bibliography=bibliography,
     )
+    logger.info("writer: done report_chars=%d bibliography=%d", len(report.content_markdown), len(bibliography))
 
     return {
-        "report": report,
+        "report": dump_model(report),
         "current_stage": "complete",
         "stage_status": "Report generated",
     }

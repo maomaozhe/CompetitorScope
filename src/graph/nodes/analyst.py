@@ -1,9 +1,12 @@
 """Analyst node — extracts structured profile for one competitor."""
 
+import logging
+
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Send
 
 from src.graph.state import AnalysisState
+from src.graph.serialization import dump_model, dump_models, raw_sources as restore_raw_sources
 from src.prompts.analyst import ANALYST_SYSTEM
 from src.services.llm import get_llm, extract_json
 from src.schemas.domain import (
@@ -14,8 +17,12 @@ from src.schemas.domain import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _build_profile(raw_text: str, competitor_id: str, competitor_name: str) -> dict:
     llm = get_llm("analyst")
+    logger.info("analyst: invoking LLM competitor=%s raw_chars=%d", competitor_name, len(raw_text))
     resp = llm.invoke([
         SystemMessage(content=ANALYST_SYSTEM),
         HumanMessage(content=f"Competitor: {competitor_name}\n\nRaw data:\n{raw_text[:6000]}"),
@@ -32,7 +39,8 @@ def fan_out_analysts(state: AnalysisState) -> list[Send]:
     if state.get("competitor_profiles"):
         return []
     competitors = state.get("confirmed_competitors", [])
-    raw_sources = state.get("raw_sources", [])
+    raw_sources = restore_raw_sources(state.get("raw_sources", []))
+    logger.info("analyst_fanout: competitors=%d raw_sources=%d", len(competitors), len(raw_sources))
 
     sends = []
     for c in competitors:
@@ -40,7 +48,7 @@ def fan_out_analysts(state: AnalysisState) -> list[Send]:
         comp_sources = [s for s in raw_sources if s.competitor_id == comp_id]
         sends.append(Send("analyze_competitor", {
             "competitor": c,
-            "raw_sources": comp_sources,
+            "raw_sources": dump_models(comp_sources),
         }))
     return sends
 
@@ -48,7 +56,7 @@ def fan_out_analysts(state: AnalysisState) -> list[Send]:
 def route_from_analyst(state: AnalysisState) -> str:
     """Route to join_analysts only after all analysts have finished."""
     competitors = state.get("confirmed_competitors", [])
-    finished = state.get("finished_analysts", set())
+    finished = state.get("finished_analysts", [])
     if len(finished) >= len(competitors):
         return "join_analysts"
     return ""
@@ -58,15 +66,17 @@ def analyze_competitor(state: AnalysisState) -> dict:
     """Analyze a single competitor's raw sources into a structured profile (via Send API)."""
     competitor = state.get("competitor", {})
     if not competitor:
-        return {"finished_analysts": set()}
+        return {"finished_analysts": []}
 
     name = competitor["name"]
     comp_id = name.lower().replace(" ", "-")
     website = competitor.get("website", "")
-    raw_sources = state.get("raw_sources", [])
+    raw_sources = restore_raw_sources(state.get("raw_sources", []))
+    logger.info("analyst: start competitor=%s sources=%d", name, len(raw_sources))
 
     if not raw_sources:
-        return {"finished_analysts": {comp_id}}
+        logger.info("analyst: no sources competitor=%s", name)
+        return {"finished_analysts": [comp_id]}
 
     # Combine all text
     combined = "\n\n".join(
@@ -75,6 +85,7 @@ def analyze_competitor(state: AnalysisState) -> dict:
     )
 
     data = _build_profile(combined, comp_id, name)
+    logger.info("analyst: parsed profile competitor=%s features=%d", name, len(data.get("features", [])))
 
     # Build profile
     features = [
@@ -127,9 +138,9 @@ def analyze_competitor(state: AnalysisState) -> dict:
         ))
 
     return {
-        "competitor_profiles": [profile],
-        "evidence_items": all_evidence,
-        "finished_analysts": {comp_id},
+        "competitor_profiles": [dump_model(profile)],
+        "evidence_items": dump_models(all_evidence),
+        "finished_analysts": [comp_id],
     }
 
 

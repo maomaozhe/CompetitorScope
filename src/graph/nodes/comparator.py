@@ -1,19 +1,24 @@
 """Comparator node — cross-competitor comparison."""
 
-import json
+import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.graph.state import AnalysisState
+from src.graph.serialization import competitor_profiles, dump_model
 from src.prompts.comparator import COMPARATOR_SYSTEM
 from src.services.llm import get_llm, extract_json
 from src.schemas.domain import ComparisonResult
 
 
+logger = logging.getLogger(__name__)
+
+
 def comparator_node(state: AnalysisState) -> dict:
-    profiles = state.get("competitor_profiles", [])
+    profiles = competitor_profiles(state.get("competitor_profiles", []))
     if not profiles:
         return {"error_message": "No profiles to compare"}
+    logger.info("comparator: start profiles=%d", len(profiles))
 
     # Build a compact text summary for LLM
     lines = []
@@ -31,6 +36,7 @@ def comparator_node(state: AnalysisState) -> dict:
     content = "\n".join(lines)
 
     llm = get_llm("comparator")
+    logger.info("comparator: invoking LLM summary_chars=%d", len(content))
     resp = llm.invoke([
         SystemMessage(content=COMPARATOR_SYSTEM),
         HumanMessage(content=f"Competitors:\n{content}"),
@@ -47,9 +53,10 @@ def comparator_node(state: AnalysisState) -> dict:
         key_insights=data.get("key_insights", []),
         recommendations=data.get("recommendations", []),
     )
+    logger.info("comparator: done insights=%d recommendations=%d", len(result.key_insights), len(result.recommendations))
 
     return {
-        "comparison_result": result,
+        "comparison_result": dump_model(result),
         "current_stage": "comparing",
         "stage_status": "Comparison complete",
     }
