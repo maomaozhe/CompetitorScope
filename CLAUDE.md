@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: MVP verified (Step 0-5 complete). Step 6+ (HITL, fan-out, etc.) pending implementation.
+**Current Status**: MVP verified (Step 0-4 complete, Step 5+ pending).
+- Step 0-4: 5-agent serial pipeline ✅
+- Step 5: Parallel fan-out via Send API ❌ (not yet implemented)
+- Step 6+: HITL integration, persistent storage ❌
 
 ## Project Architecture
 
@@ -105,8 +108,8 @@ class AnalysisState(TypedDict, total=False):
 - Report quality: functional but citations need improvement
 
 **Planned Enhancements**:
+- Step 5: Parallel fan-out (Collector×N, Analyst×N concurrently via Send API)
 - Step 6: HITL with 4 interrupt points (competitor confirm, outline confirm, data supplement, writer follow-up)
-- Step 5: Parallel fan-out (Collector×N, Analyst×N concurrently)
 - Better report citations with evidence chain
 - Persistent storage (SQLModel + SQLite)
 
@@ -116,6 +119,20 @@ class AnalysisState(TypedDict, total=False):
 2. 决策确认： 遇到不确定的代码设计，必须先询问maomao, 不可直接行动
 3. 代码兼容： 不能写兼容性代码，除非主动要求
 4. 完成一个功能就，commit，按照开源方式规范就好
+
+## Lessons Learned (避免重蹈覆辙)
+
+### CLAUDE.md 更新时必须避免的错误
+
+1. **不要基于假设更新进度** — 必须读取 `doc/memory-bank/implementation-plan.md` 和 `doc/memory-bank/progress.md` 确认实际状态，不能凭记忆或猜测。
+2. **Step 编号要对应实际任务** — Step 4 是串行管道，Step 5 是并发 fan-out，Step 6 才是 HITL。写错会导致 future session 得到错误的上下文。
+3. **复述文档时保持准确** — 引述代码实现状态、验收标准、任务清单时，要对照原文，不能"大概差不多"。
+
+### 其他工程教训
+
+- LangGraph 的 `interrupt()` 只能在节点内部调用，不能替代条件边
+- `operator.add` reducer 保证并发追加时数据不丢失，但前提是字段类型必须正确声明
+- 大产物（raw_content）应落文件而不是放 state，避免 checkpoint 膨胀
 
 ## References
 
