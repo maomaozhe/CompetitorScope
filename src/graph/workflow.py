@@ -25,7 +25,6 @@ def build_workflow():
     graph.add_conditional_edges("planner", collector.fan_out_collectors)
 
     # Collectors all feed back → join_collectors (barrier, no routing needed)
-    # The join fires once via the finished_collectors set in the conditional from planner
     graph.add_edge("collect_competitor", "join_collectors")
 
     # Join → fan out analysts

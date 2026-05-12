@@ -174,13 +174,11 @@ python scripts/run_local.py "分析 Cursor vs Windsurf"
 **任务**
 
 1. `workflow.py` 改用 `Send` API：
-   - Planner 完成后 → `fan_out_collectors()` 返回 N 个 `Send("collector", ...)`
-   - 所有 Collector 完成后 → `fan_out_analysts()` 返回 N 个 `Send("analyst", ...)`
+   - Planner 完成后 → `fan_out_collectors()` 返回 N 个 `Send("collect_competitor", ...)`
+   - 所有 Collector 完成后 → `fan_out_analysts()` 返回 N 个 `Send("analyze_competitor", ...)`
 2. 确认 `operator.add` reducer 在并发写入时正确合并
-3. `graph/gates.py`：
-   - `gate_collection`：判断每个竞品数据量
-   - `gate_analysis`：判断是否 ≥2 家完成
-4. 降级处理：某个 Collector 失败不阻塞其他
+3. Barrier 节点：`join_collectors`、`join_analysts` 等待所有 fan-out 完成
+4. `finished_collectors` / `finished_analysts: Annotated[set, union_reducer]` 追踪完成
 
 **验收**
 
@@ -192,6 +190,14 @@ python scripts/run_local.py "分析 Cursor vs Windsurf vs Copilot"
 - 3 个 Analyst 近乎同时启动
 - 总耗时 < 串行版本的 50%
 - 输出报告与串行版质量一致
+
+**实际实现**：
+
+- ✅ `Send` API fan-out：collector 和 analyst 均并发 N 路
+- ✅ join_collectors / join_analysts barrier 节点
+- ✅ `finished_collectors` / `finished_analysts: Annotated[set, _union_sets]` 完成追踪
+- ⚠️ 总耗时 ~466s vs 串行 ~510s：提升有限（LLM 瓶颈），collector 并行有效
+- ⚠️ `MemorySaver` checkpoint 与 Pydantic model 序列化不兼容，本次未启用
 
 ---
 
