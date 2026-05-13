@@ -2,14 +2,12 @@
 
 import asyncio
 import json
-import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.v1.runtime import RUN_STORE, create_run, initial_state, run_until_pause
-from src.graph.serialization import report as restore_report
+from src.api.v1.runtime import RUN_STORE, create_run, get_event_queue, initial_state, run_until_pause
 
 router = APIRouter()
 
@@ -23,7 +21,7 @@ class CreateAnalysisRequest(BaseModel):
 
 @router.post("/analysis")
 async def create_analysis(req: CreateAnalysisRequest, background_tasks: BackgroundTasks):
-    run_id = uuid.uuid4().hex[:12]
+    run_id = req.query[:12].replace(" ", "-") + "-" + __import__("uuid").uuid4().hex[:8]
     state = initial_state(
         run_id=run_id,
         query=req.query,
@@ -33,7 +31,6 @@ async def create_analysis(req: CreateAnalysisRequest, background_tasks: Backgrou
     )
     create_run(state)
     background_tasks.add_task(run_until_pause, run_id, state)
-
     return {"run_id": run_id, "status": "running", "stream_url": f"/api/v1/analysis/{run_id}/stream"}
 
 
@@ -42,46 +39,20 @@ async def stream_analysis(run_id: str):
     if run_id not in RUN_STORE:
         raise HTTPException(404, "Run not found")
 
+    q = get_event_queue(run_id)
+    if not q:
+        raise HTTPException(404, "Run event queue not found")
+
     async def event_generator():
-        last_event_idx = 0
-        last_stage = None
-        report_sent = False
         while True:
-            state = RUN_STORE[run_id]["state"]
-            stage = state.get("current_stage", "planning")
-
-            stage_events = {
-                "planning": ("planner", "compass", "分析需求中..."),
-                "collecting": ("collector", "search", "采集数据中..."),
-                "analyzing": ("analyst", "chart", "分析结构化中..."),
-                "comparing": ("comparator", "compare", "横向对比中..."),
-                "writing": ("writer", "pen", "生成报告中..."),
-            }
-            if stage in stage_events and stage != last_stage:
-                agent, avatar, msg = stage_events[stage]
-                data = {"type": "agent_start", "agent": agent, "avatar": avatar, "message": msg}
-                yield {"event": "agent_start", "data": json.dumps(data, ensure_ascii=False)}
-                last_stage = stage
-
-            events = RUN_STORE[run_id]["events"]
-            while last_event_idx < len(events):
-                item = events[last_event_idx]
-                last_event_idx += 1
-                data = {"type": item["event"], "payload": item["data"]}
-                yield {"event": item["event"], "data": json.dumps(data, ensure_ascii=False)}
-
-            report = restore_report(state.get("report"))
-            if report and not report_sent:
-                data = {"type": "report_chunk", "content": report.content_markdown}
-                yield {"event": "report_chunk", "data": json.dumps(data, ensure_ascii=False)}
-                report_sent = True
-
-            if RUN_STORE[run_id]["done"]:
+            event = await q.get()
+            if event is None:
+                # Sentinel: run completed or stopped
                 break
-
-            await asyncio.sleep(2)
-
-        yield {"event": "complete", "data": json.dumps({"type": "complete", "done": True})}
+            yield {
+                "event": event.get("event", "message"),
+                "data": json.dumps(event.get("data", {}), ensure_ascii=False),
+            }
 
     return EventSourceResponse(event_generator())
 
@@ -107,5 +78,11 @@ async def delete_analysis(run_id: str):
         raise HTTPException(404, "Not found")
     RUN_STORE[run_id]["done"] = True
     RUN_STORE[run_id]["pending_interrupt"] = None
+    # Signal the SSE queue to stop
+    q = get_event_queue(run_id)
+    if q:
+        try:
+            q.put_nowait(None)
+        except asyncio.QueueFull:
+            pass
     return {"run_id": run_id, "status": "cancelled"}
-
