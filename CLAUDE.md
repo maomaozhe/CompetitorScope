@@ -6,11 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: Step 6 HITL + CLI verified.
+**Current Status**: Step 7 FastAPI persistence + Step 8 Next.js UI completed, E2E verified 7/7.
 - Step 0-4: docs, scaffold, core models/tools, 5-agent serial pipeline ✅
 - Step 5: Parallel fan-out via Send API ✅
 - Step 6: HITL integration (interrupt/checkpoint, 3 interrupt types, CLI interactive) ✅
-- Step 7+: FastAPI hardening, persistent storage, evidence-grade citations ❌
+- Step 7: FastAPI persistence (SQLite/SQLModel, DELETE endpoint, deps, lifespan) ✅
+- Step 8: Next.js UI completion (HITL dialogs, EvidencePanel, three-column layout, API client) ✅
 
 `doc/memory-bank/progress.md` is the source of truth for current implementation status.
 `doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.
@@ -125,6 +126,22 @@ class AnalysisState(TypedDict, total=False):
 2. 决策确认： 遇到不确定的代码设计，必须先询问maomao, 不可直接行动
 3. 代码兼容： 不能写兼容性代码，除非主动要求
 4. 完成一个功能就，commit，按照开源方式规范就好
+
+## Testing & Verification
+
+每次完成功能后，必须自行验证结果：
+
+1. **网页应用**：用 Playwright 或 Chrome DevTools 打开验证
+2. **有说服力的证明**：前端需要有截图/录屏等视觉证据，保存目录需要清晰，如 doc/e2e-test/xxx
+
+```markdown
+docs/review/
+├── 2026-05-12-hitl-verification.md
+├── 2026-05-13-api-testing.md
+└── ...
+```
+
+验证文档内容应包含：测试步骤、实际结果、截图链接或 base64 图像。
 
 ## Lessons Learned (避免重蹈覆辙)
 
