@@ -28,11 +28,27 @@ export function useSSE(runId: string | null) {
     isComplete,
   } = useAnalysis();
   const esRef = useRef<EventSource | null>(null);
+  const isCompleteRef = useRef(isComplete);
+
+  useEffect(() => {
+    isCompleteRef.current = isComplete;
+    if (isComplete) {
+      setPendingHitl(null);
+    }
+  }, [isComplete, setPendingHitl]);
 
   const refreshPendingHitl = useCallback(() => {
     if (!runId) return;
+    if (isCompleteRef.current) {
+      setPendingHitl(null);
+      return;
+    }
     api.getPendingHitl(runId)
       .then((data) => {
+        if (isCompleteRef.current) {
+          setPendingHitl(null);
+          return;
+        }
         setPendingHitl(data.pending && data.payload ? data.payload as HitlRequest : null);
       })
       .catch(() => {});
@@ -45,7 +61,10 @@ export function useSSE(runId: string | null) {
         data.agents?.forEach((agent) => {
           updateAgent(agent.id, { status: agent.status, message: agent.message });
         });
-        if (data.done && !isComplete) {
+        if (data.done) {
+          setPendingHitl(null);
+        }
+        if (data.done && !isCompleteRef.current) {
           try {
             const evidence = await api.getEvidence(runId);
             setEvidenceItems(evidence.evidence);
@@ -55,7 +74,7 @@ export function useSSE(runId: string | null) {
         }
       })
       .catch(() => {});
-  }, [runId, updateAgent, isComplete, setComplete, setEvidenceItems]);
+  }, [runId, updateAgent, setComplete, setEvidenceItems, setPendingHitl]);
 
   const connect = useCallback(() => {
     if (!runId || esRef.current) return;
@@ -89,6 +108,7 @@ export function useSSE(runId: string | null) {
 
     es.addEventListener("hitl_request", (e: MessageEvent) => {
       try {
+        if (isCompleteRef.current) return;
         const data = JSON.parse(e.data) as HitlRequest;
         setPendingHitl(data);
       } catch {}
@@ -103,6 +123,7 @@ export function useSSE(runId: string | null) {
     });
 
     es.addEventListener("complete", async () => {
+      setPendingHitl(null);
       try {
         const data = await api.getEvidence(runId);
         setEvidenceItems(data.evidence);
@@ -139,13 +160,20 @@ export function useSSE(runId: string | null) {
 
   useEffect(() => {
     if (!runId) return;
+    if (isComplete) {
+      setPendingHitl(null);
+      return;
+    }
     refreshPendingHitl();
     refreshAnalysisStatus();
     const interval = window.setInterval(() => {
-      if (isComplete) return;
+      if (isCompleteRef.current) {
+        setPendingHitl(null);
+        return;
+      }
       refreshPendingHitl();
       refreshAnalysisStatus();
     }, 2500);
     return () => window.clearInterval(interval);
-  }, [runId, isComplete, refreshPendingHitl, refreshAnalysisStatus]);
+  }, [runId, isComplete, setPendingHitl, refreshPendingHitl, refreshAnalysisStatus]);
 }

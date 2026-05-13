@@ -197,6 +197,8 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
         snapshot = WORKFLOW.get_state(config)
         RUN_STORE[run_id]["state"] = dict(snapshot.values or RUN_STORE[run_id]["state"])
         RUN_STORE[run_id]["done"] = not snapshot.next
+        if RUN_STORE[run_id]["done"]:
+            RUN_STORE[run_id]["pending_interrupt"] = None
         _emit_event(run_id, "complete", {"done": True})
 
     except Exception as exc:
@@ -206,6 +208,7 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
         state["stage_status"] = "Pipeline failed"
         RUN_STORE[run_id]["state"] = state
         RUN_STORE[run_id]["done"] = True
+        RUN_STORE[run_id]["pending_interrupt"] = None
         _emit_event(run_id, "error", {"message": str(exc)})
     finally:
         # Signal end-of-stream
@@ -233,7 +236,7 @@ def _node_status_message(node_name: str) -> str:
 async def _auto_resume_after_timeout(run_id: str, payload: dict) -> None:
     await asyncio.sleep(payload.get("timeout_seconds", 30))
     run = RUN_STORE.get(run_id)
-    if not run or not run.get("pending_interrupt"):
+    if not run or run.get("done") or not run.get("pending_interrupt"):
         return
     pending = run["pending_interrupt"]["payload"]
     if pending.get("interrupt_id") != payload.get("interrupt_id"):

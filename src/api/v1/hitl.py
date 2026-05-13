@@ -28,7 +28,11 @@ class FollowUpRequest(BaseModel):
 async def get_pending_hitl(run_id: str):
     if run_id not in RUN_STORE:
         raise HTTPException(404, "Run not found")
-    pending = RUN_STORE[run_id].get("pending_interrupt")
+    run = RUN_STORE[run_id]
+    if run.get("done"):
+        run["pending_interrupt"] = None
+        return {"pending": False}
+    pending = run.get("pending_interrupt")
     if not pending:
         return {"pending": False}
     return {"pending": True, **pending}
@@ -38,7 +42,11 @@ async def get_pending_hitl(run_id: str):
 async def resume_hitl(run_id: str, req: HitlResumeRequest, background_tasks: BackgroundTasks):
     if run_id not in RUN_STORE:
         raise HTTPException(404, "Run not found")
-    if not RUN_STORE[run_id].get("pending_interrupt"):
+    run = RUN_STORE[run_id]
+    if run.get("done"):
+        run["pending_interrupt"] = None
+        raise HTTPException(409, "Run has already completed")
+    if not run.get("pending_interrupt"):
         raise HTTPException(409, "Run is not waiting for HITL input")
     background_tasks.add_task(resume_run, run_id, req.response)
     return {"run_id": run_id, "status": "resuming"}

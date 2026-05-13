@@ -147,6 +147,7 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 |-------|------|------|
 | InputForm POST `/api/v1/analysis` 返回 404 | ✅ 已修 | Next rewrite 代理 `/api/v1/*` 到 FastAPI |
 | HITL 前端提交使用错误 id | ✅ 已修 | `HITLDialog` 使用 context `runId`，不再使用 `interrupt_id` 作路径参数 |
+| 报告完成后 HITL 偶发重新弹出 | ✅ 已修 | 完成态前端强制清空/忽略 HITL；后端完成态 `/hitl/pending` 返回 false；回归见 `2026-05-13-hitl-done-guard.md` |
 | AgentFlow 只显示 Planner 实时更新 | ✅ 已修 | E2E 确认 AgentFlow 可推进到 Collector/后续完成状态 |
 | Agent handoff 中间态截图缺失 | ✅ 已修 | 增加后端 agent 状态快照 + 前端轮询兜底；8/8 transition/HITL 证据通过 |
 | 报告内容只在 isComplete=true 后显示 | ✅ 已澄清 | `ReportView` 收到 `reportContent` 即显示；当前后端仍是 writer 完成后一次性发完整 report_chunk，不是 token 级流式 |

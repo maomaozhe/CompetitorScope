@@ -13,6 +13,7 @@ CompetitorScope is a multi-agent competitive analysis system using LangGraph-bas
 - Step 7: FastAPI API layer (SSE, HITL, reports/evidence endpoints, DELETE, deps, lifespan) ✅; SQLite/SQLModel schema/init exists, but active run state is still primarily `RUN_STORE`.
 - Step 8: Next.js UI（Next rewrite, AgentFlow SSE, HITL dialogs, EvidencePanel, 三栏布局, API client）代码完成 ✅
 - **验证**: `web/test_step7_8_regression.mjs` 9/9 通过；`web/test_transition_hitl_evidence.mjs` 8/8 通过，逐张覆盖 HITL 两次确认与 Planner→Collector→Analyst→Comparator→Writer handoff。证据在 `docs/review/step7-8/`。
+- **HITL 完成态回归**: `web/test_hitl_done_guard.mjs` 验证 `done=true` 后即使 pending/SSE 返回 stale HITL，也不会重新弹窗。
 
 `doc/memory-bank/progress.md` is the source of truth for current implementation status.
 `doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.
