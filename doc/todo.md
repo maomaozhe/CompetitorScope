@@ -13,19 +13,19 @@
 - ✅ API HITL：pending + resume + follow-up 端点
 - ✅ SSE事件：hitl_request / hitl_resumed / hitl_timeout
 - ✅ CLI interactive模式：支持竞品选择、大纲确认、source补充
-- ⏭️ 前端HITL弹窗：留到Step 8
+- ✅ 前端HITL弹窗：Step 8 已接入 SSE `hitl_request`，提交使用当前 run id
 
 ---
 
 ## 可视化追踪（Agent 流程监控）
 
-**问题**：当前只能看到开始/结束，看不到中间过程和各阶段耗时。
+**问题**：已能通过 SSE 看到 Agent start/complete，但细粒度过程、阶段耗时和数据量变化还不完整。
 
 **目标**：前端点击分析任务，实时看到每个 Agent 的工作状态、流转、耗时。
 
 **后端需求**：
 
-1. `workflow.astream_events` 替代 `invoke`，实时推送每个节点的 start/end 事件
+1. `workflow.astream`/event stream 实时推送每个节点的 start/end 事件
 2. 每个节点内部加细粒度进度（如 Collector 开始抓取、开始分析等）
 3. SSE 端点 `GET /api/v1/analysis/{id}/stream` 把事件实时推送
 
@@ -36,7 +36,7 @@
 3. 每个节点显示耗时（如 `Collector 42s`）
 4. 数据量变化（如 `Sources: 0 → 12 → 35`）
 
-**状态**：待处理
+**状态**：Agent start/complete 与前端渲染已完成并通过 E2E；剩余为细粒度进度、耗时统计和数据量变化。
 
 ---
 

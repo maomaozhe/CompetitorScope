@@ -85,7 +85,7 @@ export const api = {
   async submitHitl(
     runId: string,
     response: Record<string, unknown>,
-  ): Promise<{ success: boolean }> {
+  ): Promise<{ run_id: string; status: string }> {
     const res = await fetch(`${BASE}/analysis/${runId}/hitl`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,7 +97,7 @@ export const api = {
 
   async getPendingHitl(
     runId: string,
-  ): Promise<{ pending: Record<string, unknown> | null }> {
+  ): Promise<{ pending: boolean; payload?: Record<string, unknown> }> {
     const res = await fetch(`${BASE}/analysis/${runId}/hitl/pending`);
     if (!res.ok) throw new Error(`getPendingHitl failed: ${res.status}`);
     return res.json();

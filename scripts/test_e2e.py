@@ -1,12 +1,7 @@
 """E2E test for Step 7/8 features via Playwright."""
 
 import asyncio
-import json
-import os
-import time
 from pathlib import Path
-
-from playwright.async_api import async_playwright
 
 BACKEND = "http://localhost:8000"
 FRONTEND = "http://localhost:3000"
@@ -23,6 +18,8 @@ def save_screenshot(page, name: str):
 
 
 async def run_e2e():
+    from playwright.async_api import async_playwright
+
     results = {"tests": [], "passed": 0, "failed": 0}
 
     async with async_playwright() as p:
@@ -69,11 +66,11 @@ async def run_e2e():
             textarea = page.locator("textarea").first
             await textarea.fill("分析 AI Coding IDE 赛道主要竞品，重点关注定价和开发者口碑")
 
-            submit_btn = page.locator("button", has-text="🚀 启动竞品分析")
+            submit_btn = page.locator("button", has_text="🚀 启动竞品分析")
             await submit_btn.click()
 
             # Wait for navigation to analysis page
-            await page.wait_for_url(f"**/analysis/**", timeout=10000)
+            await page.wait_for_url("**/analysis/**", timeout=10000)
             url = page.url
             run_id = url.split("/")[-1]
             print(f"  ✓ Navigated to /analysis/{run_id}")

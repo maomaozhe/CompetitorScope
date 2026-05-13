@@ -20,6 +20,7 @@ RUN_STORE: dict[str, dict[str, Any]] = {}
 # Per-run event queues for true SSE streaming (replaces polling)
 # Maps run_id → asyncio.Queue of SSE event dicts
 _EVENT_QUEUES: dict[str, asyncio.Queue] = {}
+_EVENT_HISTORY: dict[str, list[dict[str, Any]]] = {}
 
 
 def graph_config(run_id: str) -> dict:
@@ -67,6 +68,7 @@ def create_run(state: AnalysisState) -> None:
         "created_at": time.time(),
     }
     _EVENT_QUEUES[run_id] = asyncio.Queue()
+    _EVENT_HISTORY[run_id] = []
 
 
 def get_event_queue(run_id: str) -> asyncio.Queue | None:
@@ -75,12 +77,18 @@ def get_event_queue(run_id: str) -> asyncio.Queue | None:
 
 def _emit_event(run_id: str, event: str, data: dict) -> None:
     """Emit an SSE event to the run's queue (non-blocking)."""
+    item = {"event": event, "data": data}
+    _EVENT_HISTORY.setdefault(run_id, []).append(item)
     q = _EVENT_QUEUES.get(run_id)
     if q:
         try:
-            q.put_nowait({"event": event, "data": data})
+            q.put_nowait(item)
         except asyncio.QueueFull:
             pass
+
+
+def get_event_history(run_id: str) -> list[dict[str, Any]]:
+    return list(_EVENT_HISTORY.get(run_id, []))
 
 
 async def _snapshot_state(run_id: str) -> dict:
@@ -95,6 +103,7 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
     config = graph_config(run_id)
     RUN_STORE[run_id]["done"] = False
     RUN_STORE[run_id]["pending_interrupt"] = None
+    close_stream = True
 
     # Map node names → agent IDs for SSE events
     NODE_AGENT_MAP = {
@@ -130,6 +139,29 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                 if error:
                     _emit_event(run_id, "error", {"agent": agent_id, "message": str(error)})
                 else:
+                    interrupts = payload.get("interrupts") or []
+                    if interrupts:
+                        interrupt_obj = interrupts[0]
+                        value = interrupt_obj.get("value", {}) if isinstance(interrupt_obj, dict) else {}
+                        if isinstance(value, dict):
+                            value["interrupt_id"] = interrupt_obj.get("id", "")
+                        else:
+                            value = {"interrupt_id": interrupt_obj.get("id", "")}
+                        RUN_STORE[run_id]["pending_interrupt"] = {
+                            "payload": value if isinstance(value, dict) else {},
+                            "created_at": time.time(),
+                        }
+                        state = await _snapshot_state(run_id)
+                        state["current_stage"] = state.get("current_stage", "planning")
+                        state["stage_status"] = "Waiting for human input"
+                        RUN_STORE[run_id]["state"] = state
+                        _emit_event(run_id, "hitl_request", value if isinstance(value, dict) else {})
+                        asyncio.create_task(
+                            _auto_resume_after_timeout(run_id, value if isinstance(value, dict) else {})
+                        )
+                        close_stream = False
+                        return
+
                     _emit_event(run_id, "agent_complete", {"agent": agent_id, "node": node_name})
                     # Forward report_chunk if writer finished
                     result = payload.get("result", {})
@@ -156,6 +188,7 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                     RUN_STORE[run_id]["state"] = state
                     _emit_event(run_id, "hitl_request", value if isinstance(value, dict) else {})
                     asyncio.create_task(_auto_resume_after_timeout(run_id, value if isinstance(value, dict) else {}))
+                    close_stream = False
                     return
 
             # Update state snapshot
@@ -177,7 +210,7 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
     finally:
         # Signal end-of-stream
         q = _EVENT_QUEUES.get(run_id)
-        if q:
+        if close_stream and q:
             try:
                 q.put_nowait(None)  # None = sentinel for "done"
             except asyncio.QueueFull:

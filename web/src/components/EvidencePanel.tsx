@@ -42,7 +42,9 @@ export function EvidencePanel() {
                 </button>
               </div>
               <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/30 p-3">
-                <p className="text-xs text-zinc-400 leading-relaxed italic">"{selectedEvidence.excerpt}"</p>
+                <p className="text-xs text-zinc-400 leading-relaxed italic">
+                  &ldquo;{selectedEvidence.excerpt}&rdquo;
+                </p>
               </div>
               <div className="flex items-center justify-between">
                 <a

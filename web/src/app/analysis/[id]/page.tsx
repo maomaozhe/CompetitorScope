@@ -18,13 +18,13 @@ export default function AnalysisPage({
 
   // Sync runId into context via useEffect (not render phase)
   useEffect(() => {
-    if (!runId) {
+    if (runId !== id) {
       setRunId(id);
     }
   }, [id, runId, setRunId]);
 
   // Connect SSE
-  useSSE(id);
+  useSSE(runId === id ? id : null);
 
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950">

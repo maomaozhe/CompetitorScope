@@ -17,6 +17,11 @@ export interface HitlRequest {
   type: string;
   interrupt_id: string;
   message: string;
+  run_id?: string;
+  candidates?: Array<{ name: string; website?: string }>;
+  outline?: string;
+  dimensions?: string[];
+  low_source_competitors?: Array<{ competitor_id: string; name: string; source_count: number }>;
   options?: Record<string, unknown>;
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;

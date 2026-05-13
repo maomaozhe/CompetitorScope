@@ -98,40 +98,50 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | CLI 真实 auto | ✅ | `output/run-b7da1b70/report.md`：3 competitors / 3 profiles / 21 sources |
 | CLI 真实可观测 auto | ✅ | `output/run-d94173e0/report.md`：5 competitors / 5 profiles / 37 sources |
 
-### 2026-05-13 — Step 7/8 完成 + SSE 实时渲染问题
+### 2026-05-13 — Step 7/8 收口 + SSE/HITL/Evidence 修复
 
 | 项目 | 状态 | 说明 |
 |------|------|------|
-| SQLite + SQLModel 持久化 | ✅ | `database.py`、`models/run.py`、`models/source.py` |
+| SQLite + SQLModel schema/init | ⚠️ | `database.py`、`models/run.py`、`models/source.py` 已有；当前 API 运行态仍主要使用 `RUN_STORE` |
 | DELETE /analysis/{id} | ✅ | interrupt thread + 清理 RUN_STORE + 队列 sentinel |
 | API deps 依赖注入 | ✅ | `api/deps.py` |
 | Next.js 三栏布局 | ✅ | AgentFlow + ReportView + EvidencePanel |
-| HITLDialog 组件 | ✅ | CompetitorConfirm / OutlineConfirm / CollectorSupplement / FollowUp |
-| EvidencePanel 组件 | ✅ | 右侧证据面板，点击引用展开详情 |
+| Next rewrite | ✅ | `/api/v1/:path*` 统一代理到 FastAPI，首页 POST 不再依赖硬编码后端地址 |
+| HITLDialog 组件 | ✅ | CompetitorConfirm / OutlineConfirm / CollectorSupplement；提交使用当前 `runId` |
+| EvidencePanel 组件 | ✅ | complete 后拉取 evidence，右侧证据面板支持点击引用展开详情 |
 | SSE streaming 后端 | ✅ | `astream` + `asyncio.Queue`，事件正确推送（agent_start/complete/ report_chunk） |
-| SSE 实时渲染前端 | ✅ **已修复** | E2E 测试 2/2 通过，Planner/Collector 等节点实时更新正常 |
+| SSE 实时渲染前端 | ✅ | named event 用 `addEventListener`，AgentFlow 可被 agent_start/complete 驱动 |
+| E2E 截图自判定 | ✅ | `web/test_step7_8_regression.mjs` 9/9 通过，报告见 `docs/review/step7-8/2026-05-13-step7-8-regression.md` |
 
-**SSE 修复 (2026-05-13)** — 3 个 bug：
+**SSE/HITL/Evidence 修复 (2026-05-13)**：
 
 1. `web/src/hooks/useSSE.ts` — `es.onmessage` 只处理无类型的 SSE 消息。`event: agent_start` 需要 `es.addEventListener("agent_start", ...)` 而不是 `es.onagent_start`。修复：改用 `addEventListener()`。
 
 2. `web/src/app/analysis/[id]/page.tsx` — `setRunId(id)` 在 render 阶段直接调用（非 useEffect），React 报错并拒绝渲染。修复：包在 `useEffect()` 里。
 
-3. `web/src/hooks/useSSE.ts` — EventSource URL 是相对路径 `/api/v1/analysis/.../stream`，被 Next.js App Router 拦截返回 404。修复：改用 `http://localhost:8000/api/v1/analysis/.../stream`。
+3. `web/src/hooks/useSSE.ts` — EventSource URL 是相对路径 `/api/v1/analysis/.../stream`，需要 Next rewrite 转发到 FastAPI。修复：`web/next.config.ts` 增加 rewrite，前端保留相对路径。
 
-**E2E 测试结果：2/2 通过**
+4. `web/src/components/HITLDialog.tsx` — 原先把 `interrupt_id` 当成 `run_id` 提交 HITL。修复：从 AnalysisContext 使用当前 `runId` 调用 `POST /analysis/{runId}/hitl`。
+
+5. `web/src/hooks/useSSE.ts` — 原先未处理 HITL 和 Evidence 闭环。修复：监听 `hitl_request` / `hitl_resumed` / `hitl_timeout`，complete 后拉取 `/reports/{runId}/evidence`。
+
+**历史 SSE E2E 测试结果：2/2 通过**
 - `docs/review/step7-api/2026-05-13-sse-page-loaded.png` — Planner "运行中" / "生成大纲中..."
 - `docs/review/step7-api/2026-05-13-sse-planner-complete.png` — "1/5 完成", Planner "完成", Collector "运行中"
 
+**本轮收口验证**：`web/test_step7_8_regression.mjs` 9/9 通过；截图只作为证据，每项均由脚本 DOM/API 结果 + Codex 自判定结论确认。
+
 ---
 
-### 2026-05-13 — 待修 Issue（记录）
+### 2026-05-13 — 遗留 Issue（记录）
 
 | Issue | 状态 | 说明 |
 |-------|------|------|
-| InputForm POST `/api/v1/analysis` 返回 404 | 待修 | Next.js 无 `/api/v1/analysis` 路由，需要 rewrite 或 absolute URL |
-| AgentFlow 只显示 Planner 实时更新，其他 Agent 不更新 | 待查 | NODE_AGENT_MAP 正确，SSE 事件有发出，需验证 updateAgent 是否对所有 Agent 生效 |
-| 报告内容只在 isComplete=true 后显示，无流式渐进输出 | 待修 | ReportView 需在 appendReport 有内容时就开始显示，不等 isComplete |
+| InputForm POST `/api/v1/analysis` 返回 404 | ✅ 已修 | Next rewrite 代理 `/api/v1/*` 到 FastAPI |
+| HITL 前端提交使用错误 id | ✅ 已修 | `HITLDialog` 使用 context `runId`，不再使用 `interrupt_id` 作路径参数 |
+| AgentFlow 只显示 Planner 实时更新 | ✅ 已修 | E2E 确认 AgentFlow 可推进到 Collector/后续完成状态 |
+| 报告内容只在 isComplete=true 后显示 | ✅ 已澄清 | `ReportView` 收到 `reportContent` 即显示；当前后端仍是 writer 完成后一次性发完整 report_chunk，不是 token 级流式 |
+| Evidence 引用下钻 | ✅ 已修 | complete 后拉取 evidence；E2E 确认报告完成且 evidence endpoint 返回 11 条 |
 
 ### 2026-05-12 — 调试修复记录
 

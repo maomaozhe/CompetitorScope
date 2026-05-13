@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: Step 7 FastAPI persistence + Step 8 Next.js UI completed, E2E verified 7/7.
+**Current Status**: Step 7/8 主链路已收口，严格 E2E 9/9 通过（截图 + 自判定）。
 - Step 0-4: docs, scaffold, core models/tools, 5-agent serial pipeline ✅
 - Step 5: Parallel fan-out via Send API ✅
 - Step 6: HITL integration (interrupt/checkpoint, 3 interrupt types, CLI interactive) ✅
-- Step 7: FastAPI persistence (SQLite/SQLModel, DELETE endpoint, deps, lifespan) ✅
-- Step 8: Next.js UI completion (HITL dialogs, EvidencePanel, three-column layout, API client) ✅
+- Step 7: FastAPI API layer (SSE, HITL, reports/evidence endpoints, DELETE, deps, lifespan) ✅; SQLite/SQLModel schema/init exists, but active run state is still primarily `RUN_STORE`.
+- Step 8: Next.js UI（Next rewrite, AgentFlow SSE, HITL dialogs, EvidencePanel, 三栏布局, API client）代码完成 ✅
+- **验证**: `web/test_step7_8_regression.mjs` 9/9 通过，证据在 `docs/review/step7-8/2026-05-13-step7-8-regression.md`。
 
 `doc/memory-bank/progress.md` is the source of truth for current implementation status.
 `doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.
@@ -101,47 +102,50 @@ class AnalysisState(TypedDict, total=False):
 | POST | `/api/v1/analysis` | Create new analysis run (background task) |
 | GET | `/api/v1/analysis/{run_id}/stream` | SSE stream for real-time agent progress |
 | GET | `/api/v1/analysis/{run_id}` | Get analysis status |
+| DELETE | `/api/v1/analysis/{run_id}` | Cancel analysis run |
+| GET | `/api/v1/analysis/{run_id}/hitl/pending` | Get pending HITL request |
+| POST | `/api/v1/analysis/{run_id}/hitl` | Resume paused HITL run |
 | GET | `/api/v1/reports/{run_id}` | Get full report (markdown + bibliography) |
+| GET | `/api/v1/reports/{run_id}/markdown` | Download report markdown |
+| GET | `/api/v1/reports/{run_id}/evidence` | Get evidence chain |
 | GET | `/api/v1/health` | Health check |
 
 ## MVP vs Future
 
 **MVP (Current)**:
-- 5 agents run in **serial** (not parallel)
-- Basic FastAPI API and Next.js UI exist, but they are MVP-level and not the full Step 7/8 target
-- No HITL (Human-In-The-Loop) interruptions
-- In-memory run store (no persistent DB)
+- 5 agents use LangGraph fan-out for collector/analyst paths, with HITL gates between major stages
+- FastAPI API and Next.js UI cover the Step 7/8 main path
+- HITL backend, CLI, SSE events, and frontend dialogs exist
+- SQLite/SQLModel schema/init exists, but active API state and report/evidence reads still primarily use `RUN_STORE`
 - Report quality: functional but citations need improvement
 
 **Planned Enhancements**:
-- Step 5: Parallel fan-out (Collector×N, Analyst×N concurrently via Send API)
-- Step 6: HITL with 4 interrupt points (competitor confirm, outline confirm, data supplement, writer follow-up)
-- Step 7/8 hardening: full API surface, evidence endpoints, robust SSE mapping, production-quality UI states
+- Complete DB persistence for run/source/evidence records beyond current schema/init
+- Production hardening for deployment URLs, auth, cancellation semantics, and replayable traces
 - Better report citations with evidence chain
-- Persistent storage (SQLModel + SQLite)
 
 ## Project Rules
 
 1. 称呼规则： 每次回复前使用"maomao"作为称呼
 2. 决策确认： 遇到不确定的代码设计，必须先询问maomao, 不可直接行动
 3. 代码兼容： 不能写兼容性代码，除非主动要求
-4. 完成一个功能就，commit，按照开源方式规范就好
+4. 完成一个功能/需求就commit，commit前和我确认一下，按照开源方式规范就好
 
 ## Testing & Verification
 
 每次完成功能后，必须自行验证结果：
 
 1. **网页应用**：用 Playwright 或 Chrome DevTools 打开验证
-2. **有说服力的证明**：前端需要有截图/录屏等视觉证据，保存目录需要清晰，如 doc/e2e-test/xxx
+2. **有说服力的证明**：前端需要有截图/录屏等视觉证据，保存目录需要清晰，如 `docs/review/<feature>/...`
+3. **严格人工判定**：截图只是证据，不是通过条件。必须逐张检查 URL、状态、文案、布局、弹窗、报告和证据链是否符合预期，确认后才能写 pass。
 
 ```markdown
 docs/review/
-├── 2026-05-12-hitl-verification.md
-├── 2026-05-13-api-testing.md
+├── step7-8/
 └── ...
 ```
 
-验证文档内容应包含：测试步骤、实际结果、截图链接或 base64 图像。
+验证文档内容应包含：测试步骤、实际结果、截图链接或 base64 图像，以及人工判定结论。
 
 ## Lessons Learned (避免重蹈覆辙)
 
@@ -156,32 +160,6 @@ docs/review/
 - LangGraph 的 `interrupt()` 只能在节点内部调用，不能替代条件边
 - `operator.add` reducer 保证并发追加时数据不丢失，但前提是字段类型必须正确声明
 - 大产物（raw_content）应落文件而不是放 state，避免 checkpoint 膨胀
-
-### Step 5 Fan-out 实现教训
-
-1. **并发不一定省时间** — 当 LLM 调用是主要瓶颈（Planner/Analyst/Writer），真正的并行收益只在 Collector 的 IO 操作（网络抓取）。Planner/Analyst 的 LLM 调用必须等前一步完成，并发收益有限。
-
-2. **Send API 与 add_edge 混用有坑** — Send 启动的 N 个节点，每个都通过 `add_edge(node, join)` 触发 join 节点 → N 个 join 并发执行，同时写 `current_stage`（LastValue channel）→ `InvalidUpdateError`。解法：用 set union reducer + `add_conditional_edges` 路由，或 Send 汇合用单独 join 节点。
-
-3. **`operator.add` 不支持 set** — 集合并发写要用自定义 reducer：
-   ```python
-   def _union_sets(a, b): return (a or set()) | (b or set())
-   finished_collectors: Annotated[set[str], _union_sets]
-   ```
-
-4. **测试周期太长** — 每次端到端运行 ~12min（LLM 慢），导致迭代成本高。需要在 `scripts/` 下建立 `test_fan_out_small.py` 用 mock LLM + 假数据快速验证逻辑，再跑真实 Pipeline。
-
-5. **`stream_output=["all"]` 不返回 START 事件** — 用 `workflow.invoke`（返回最终 state）做端到端，用 `workflow.stream` 逐节点观察状态更新，不要混用。
-
-### Step 6 HITL 实现教训
-
-1. **MemorySaver 无法序列化 Pydantic model** — 解法：在写入 state 前 `model → dict`（`dump_model`），读出时 `dict → model`（`restore_*` helpers）。见 `src/graph/serialization.py`。
-
-2. **Interrupt 只在节点内部调用** — 不能在 conditional edge 函数里调用 interrupt，必须在 node 函数里。
-
-3. **Planner 两阶段拆分** — `planner_discover`（竞品发现+HITL确认）和 `planner_outline`（大纲生成+HITL确认）串行，用 `add_edge` 连接。
-
-4. **Collector 并行内的 interrupt** — 避免在 Send fan-out 内部 interrupt，改为 join 节点统一处理（汇总低 source 竞品后一次性 interrupt）。
 
 ## References
 

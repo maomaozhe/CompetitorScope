@@ -7,7 +7,14 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from src.api.v1.runtime import RUN_STORE, create_run, get_event_queue, initial_state, run_until_pause
+from src.api.v1.runtime import (
+    RUN_STORE,
+    create_run,
+    get_event_history,
+    get_event_queue,
+    initial_state,
+    run_until_pause,
+)
 
 router = APIRouter()
 
@@ -44,6 +51,11 @@ async def stream_analysis(run_id: str):
         raise HTTPException(404, "Run event queue not found")
 
     async def event_generator():
+        for event in get_event_history(run_id):
+            yield {
+                "event": event.get("event", "message"),
+                "data": json.dumps(event.get("data", {}), ensure_ascii=False),
+            }
         while True:
             event = await q.get()
             if event is None:
