@@ -11,12 +11,19 @@ from src.api.v1.runtime import (
     RUN_STORE,
     create_run,
     get_event_history,
-    get_event_queue,
     initial_state,
     run_until_pause,
 )
 
 router = APIRouter()
+
+AGENT_DEFAULTS = [
+    {"id": "planner", "status": "idle", "message": "等待启动"},
+    {"id": "collector", "status": "idle", "message": "等待启动"},
+    {"id": "analyst", "status": "idle", "message": "等待启动"},
+    {"id": "comparator", "status": "idle", "message": "等待启动"},
+    {"id": "writer", "status": "idle", "message": "等待启动"},
+]
 
 
 class CreateAnalysisRequest(BaseModel):
@@ -24,6 +31,33 @@ class CreateAnalysisRequest(BaseModel):
     competitors: list[str] = []
     dimensions: list[str] = []
     hitl_mode: str = "auto"
+
+
+def _agent_statuses_from_history(run_id: str) -> list[dict[str, str]]:
+    statuses = {agent["id"]: dict(agent) for agent in AGENT_DEFAULTS}
+    for item in get_event_history(run_id):
+        event = item.get("event")
+        data = item.get("data", {})
+        agent = data.get("agent") if isinstance(data, dict) else None
+        if not agent or agent not in statuses:
+            if event == "complete":
+                statuses["writer"].update({"status": "complete", "message": "已完成"})
+            continue
+
+        if event == "agent_start":
+            statuses[agent].update({
+                "status": "running",
+                "message": str(data.get("message") or "处理中..."),
+            })
+        elif event == "agent_complete":
+            statuses[agent].update({"status": "complete", "message": "已完成"})
+        elif event == "error":
+            statuses[agent].update({
+                "status": "error",
+                "message": str(data.get("message") or "运行失败"),
+            })
+
+    return [statuses[agent["id"]] for agent in AGENT_DEFAULTS]
 
 
 @router.post("/analysis")
@@ -46,25 +80,22 @@ async def stream_analysis(run_id: str):
     if run_id not in RUN_STORE:
         raise HTTPException(404, "Run not found")
 
-    q = get_event_queue(run_id)
-    if not q:
-        raise HTTPException(404, "Run event queue not found")
-
     async def event_generator():
-        for event in get_event_history(run_id):
-            yield {
-                "event": event.get("event", "message"),
-                "data": json.dumps(event.get("data", {}), ensure_ascii=False),
-            }
+        sent_count = 0
         while True:
-            event = await q.get()
-            if event is None:
-                # Sentinel: run completed or stopped
+            history = get_event_history(run_id)
+            for event in history[sent_count:]:
+                yield {
+                    "event": event.get("event", "message"),
+                    "data": json.dumps(event.get("data", {}), ensure_ascii=False),
+                }
+            sent_count = len(history)
+
+            run = RUN_STORE.get(run_id)
+            if not run or (run.get("done") and sent_count >= len(get_event_history(run_id))):
                 break
-            yield {
-                "event": event.get("event", "message"),
-                "data": json.dumps(event.get("data", {}), ensure_ascii=False),
-            }
+
+            await asyncio.sleep(0.25)
 
     return EventSourceResponse(event_generator())
 
@@ -80,6 +111,7 @@ async def get_analysis(run_id: str):
         "status": state.get("stage_status", ""),
         "done": RUN_STORE[run_id]["done"],
         "pending_hitl": RUN_STORE[run_id].get("pending_interrupt") is not None,
+        "agents": _agent_statuses_from_history(run_id),
     }
 
 
@@ -90,11 +122,4 @@ async def delete_analysis(run_id: str):
         raise HTTPException(404, "Not found")
     RUN_STORE[run_id]["done"] = True
     RUN_STORE[run_id]["pending_interrupt"] = None
-    # Signal the SSE queue to stop
-    q = get_event_queue(run_id)
-    if q:
-        try:
-            q.put_nowait(None)
-        except asyncio.QueueFull:
-            pass
     return {"run_id": run_id, "status": "cancelled"}

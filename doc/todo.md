@@ -38,6 +38,18 @@
 
 **状态**：Agent start/complete 与前端渲染已完成并通过 E2E；剩余为细粒度进度、耗时统计和数据量变化。
 
+**2026-05-13 补充**：已增加 agent 状态快照兜底同步，并通过 `web/test_transition_hitl_evidence.mjs` 截图验证 Planner→Collector→Analyst→Comparator→Writer 每个 handoff 中间态。
+
+---
+
+## 报告内容质量
+
+**问题**：真实最终报告中偶现 `[object Object]`，说明 Writer 输入上下文里仍可能有对象未格式化为可读文本。
+
+**证据**：`docs/review/step7-8/2026-05-13-transition-05-final-5-of-5-report.png`
+
+**状态**：待处理。本轮先保留错误证据，流程/HITL 状态验证已通过。
+
 ---
 
 ## Step 5 性能优化（可选）

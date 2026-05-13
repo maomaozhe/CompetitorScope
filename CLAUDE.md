@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CompetitorScope is a multi-agent competitive analysis system using LangGraph-based workflow orchestration. The system orchestrates specialized agents via a state graph to produce competitive analysis reports.
 
-**Current Status**: Step 7/8 主链路已收口，严格 E2E 9/9 通过（截图 + 自判定）。
+**Current Status**: Step 7/8 主链路已收口，严格 E2E 9/9 + Transition/HITL 8/8 通过（截图 + 自判定）。
 - Step 0-4: docs, scaffold, core models/tools, 5-agent serial pipeline ✅
 - Step 5: Parallel fan-out via Send API ✅
 - Step 6: HITL integration (interrupt/checkpoint, 3 interrupt types, CLI interactive) ✅
 - Step 7: FastAPI API layer (SSE, HITL, reports/evidence endpoints, DELETE, deps, lifespan) ✅; SQLite/SQLModel schema/init exists, but active run state is still primarily `RUN_STORE`.
 - Step 8: Next.js UI（Next rewrite, AgentFlow SSE, HITL dialogs, EvidencePanel, 三栏布局, API client）代码完成 ✅
-- **验证**: `web/test_step7_8_regression.mjs` 9/9 通过，证据在 `docs/review/step7-8/2026-05-13-step7-8-regression.md`。
+- **验证**: `web/test_step7_8_regression.mjs` 9/9 通过；`web/test_transition_hitl_evidence.mjs` 8/8 通过，逐张覆盖 HITL 两次确认与 Planner→Collector→Analyst→Comparator→Writer handoff。证据在 `docs/review/step7-8/`。
 
 `doc/memory-bank/progress.md` is the source of truth for current implementation status.
 `doc/memory-bank/implementation-plan.md` is the source of truth for Step numbering.

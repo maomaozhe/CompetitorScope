@@ -6,12 +6,14 @@
 
 ## 当前状态
 
-**里程碑 M3：Step 6 HITL 后端 + CLI — ✅ 已验证跑通**
+**里程碑 M4：Step 7/8 API + 前端主链路 — ✅ 已验证跑通**
 
-Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→Writer）实测通过：
-- auto 模式真实跑通：3 家竞品，21 条原始数据，3 个结构化档案，报告输出成功
-- 可观测 CLI 真实跑通：5 家竞品，37 条原始数据，5 个结构化档案，节点级日志输出成功
-- interactive 模式 mock 验证通过：竞品确认、大纲确认、低 source 补充 3 类 interrupt 均可 resume
+Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→Writer）通过 API + Next.js UI 实测：
+- Step 7/8 回归：`web/test_step7_8_regression.mjs` 9/9 通过
+- Transition/HITL 证据链：`web/test_transition_hitl_evidence.mjs` 8/8 通过
+- HITL 两阶段截图确认：竞品确认、报告大纲确认、确认后 resume
+- Agent handoff 截图确认：Planner→Collector→Analyst→Comparator→Writer 每个交接都显示“前一个完成 + 后一个运行中”
+- 遗留：最终报告内容偶现 `[object Object]`，已记录为内容质量问题，不影响本轮流程/HITL 状态验收
 
 ---
 
@@ -111,7 +113,9 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | EvidencePanel 组件 | ✅ | complete 后拉取 evidence，右侧证据面板支持点击引用展开详情 |
 | SSE streaming 后端 | ✅ | `astream` + `asyncio.Queue`，事件正确推送（agent_start/complete/ report_chunk） |
 | SSE 实时渲染前端 | ✅ | named event 用 `addEventListener`，AgentFlow 可被 agent_start/complete 驱动 |
+| Agent 状态兜底同步 | ✅ | `GET /analysis/{id}` 返回由事件历史重建的 agent 状态；前端 2.5s 同步，避免单个 SSE 事件丢失导致中间态不可见 |
 | E2E 截图自判定 | ✅ | `web/test_step7_8_regression.mjs` 9/9 通过，报告见 `docs/review/step7-8/2026-05-13-step7-8-regression.md` |
+| Transition/HITL 截图自判定 | ✅ | `web/test_transition_hitl_evidence.mjs` 8/8 通过，报告见 `docs/review/step7-8/2026-05-13-transition-hitl-evidence.md` |
 
 **SSE/HITL/Evidence 修复 (2026-05-13)**：
 
@@ -129,7 +133,11 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 - `docs/review/step7-api/2026-05-13-sse-page-loaded.png` — Planner "运行中" / "生成大纲中..."
 - `docs/review/step7-api/2026-05-13-sse-planner-complete.png` — "1/5 完成", Planner "完成", Collector "运行中"
 
-**本轮收口验证**：`web/test_step7_8_regression.mjs` 9/9 通过；截图只作为证据，每项均由脚本 DOM/API 结果 + Codex 自判定结论确认。
+**本轮收口验证**：
+- `web/test_step7_8_regression.mjs` 9/9 通过；覆盖首页、创建分析、HITL、AgentFlow、报告、证据链点击。
+- `web/test_transition_hitl_evidence.mjs` 8/8 通过；覆盖 HITL pending/backend type 与四个 agent handoff 中间态。
+- 截图只作为证据，每项均由脚本 DOM/API 结果 + Codex 逐张目检自判定确认。
+- 错误截图保留：`docs/review/step7-8/2026-05-13-hitl-evidence-error-outline-missing.png` 与 `docs/review/step7-8/*-error-not-live.png`。
 
 ---
 
@@ -140,8 +148,19 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | InputForm POST `/api/v1/analysis` 返回 404 | ✅ 已修 | Next rewrite 代理 `/api/v1/*` 到 FastAPI |
 | HITL 前端提交使用错误 id | ✅ 已修 | `HITLDialog` 使用 context `runId`，不再使用 `interrupt_id` 作路径参数 |
 | AgentFlow 只显示 Planner 实时更新 | ✅ 已修 | E2E 确认 AgentFlow 可推进到 Collector/后续完成状态 |
+| Agent handoff 中间态截图缺失 | ✅ 已修 | 增加后端 agent 状态快照 + 前端轮询兜底；8/8 transition/HITL 证据通过 |
 | 报告内容只在 isComplete=true 后显示 | ✅ 已澄清 | `ReportView` 收到 `reportContent` 即显示；当前后端仍是 writer 完成后一次性发完整 report_chunk，不是 token 级流式 |
 | Evidence 引用下钻 | ✅ 已修 | complete 后拉取 evidence；E2E 确认报告完成且 evidence endpoint 返回 11 条 |
+| 报告正文出现 `[object Object]` | ⚠️ 待修 | 最终截图中可见，属于 Writer 输入/序列化内容质量问题；已保留证据，不计入本轮流程/HITL 状态验收 |
+
+### 2026-05-13 — 中间状态与耗时链排查
+
+| 项目 | 结论 |
+|------|------|
+| Agent 中间状态 | SSE 按 LangGraph node 发出 `agent_start` / `agent_complete`，AgentFlow 可从 Planner 推进到 Collector / Analyst / Comparator / Writer；状态 API 兜底同步后，每个 handoff 均有截图证据 |
+| Event replay | 已改为基于 history polling 的 SSE 输出，避免 replay history 后又消费旧 queue 造成重复事件 |
+| 单竞品耗时 | 真实 trace 总耗时 425.7s，详见 `docs/review/step7-8/2026-05-13-timing-chain.md` |
+| 主要瓶颈 | Writer 255.9s，占总耗时约 60%；Comparator 58.7s，Analyst 53.1s，Collector 33.9s，Planner outline 23.9s |
 
 ### 2026-05-12 — 调试修复记录
 

@@ -19,6 +19,11 @@ export interface AnalysisStatus {
   status: string;
   done: boolean;
   pending_hitl: boolean;
+  agents?: Array<{
+    id: string;
+    status: "idle" | "running" | "complete" | "error";
+    message: string;
+  }>;
 }
 
 export interface ReportResponse {

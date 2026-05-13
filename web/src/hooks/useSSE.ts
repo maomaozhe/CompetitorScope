@@ -25,18 +25,41 @@ export function useSSE(runId: string | null) {
     setComplete,
     setPendingHitl,
     setEvidenceItems,
+    isComplete,
   } = useAnalysis();
   const esRef = useRef<EventSource | null>(null);
 
-  const connect = useCallback(() => {
-    if (!runId || esRef.current) return;
+  const refreshPendingHitl = useCallback(() => {
+    if (!runId) return;
     api.getPendingHitl(runId)
       .then((data) => {
-        if (data.pending && data.payload) {
-          setPendingHitl(data.payload as HitlRequest);
+        setPendingHitl(data.pending && data.payload ? data.payload as HitlRequest : null);
+      })
+      .catch(() => {});
+  }, [runId, setPendingHitl]);
+
+  const refreshAnalysisStatus = useCallback(() => {
+    if (!runId) return;
+    api.getAnalysis(runId)
+      .then(async (data) => {
+        data.agents?.forEach((agent) => {
+          updateAgent(agent.id, { status: agent.status, message: agent.message });
+        });
+        if (data.done && !isComplete) {
+          try {
+            const evidence = await api.getEvidence(runId);
+            setEvidenceItems(evidence.evidence);
+          } catch {}
+          setComplete();
+          updateAgent("writer", { status: "complete", message: "已完成" });
         }
       })
       .catch(() => {});
+  }, [runId, updateAgent, isComplete, setComplete, setEvidenceItems]);
+
+  const connect = useCallback(() => {
+    if (!runId || esRef.current) return;
+    refreshPendingHitl();
 
     const es = new EventSource(`/api/v1/analysis/${runId}/stream`);
     esRef.current = es;
@@ -72,11 +95,11 @@ export function useSSE(runId: string | null) {
     });
 
     es.addEventListener("hitl_resumed", () => {
-      setPendingHitl(null);
+      refreshPendingHitl();
     });
 
     es.addEventListener("hitl_timeout", () => {
-      setPendingHitl(null);
+      refreshPendingHitl();
     });
 
     es.addEventListener("complete", async () => {
@@ -103,6 +126,7 @@ export function useSSE(runId: string | null) {
     setComplete,
     setPendingHitl,
     setEvidenceItems,
+    refreshPendingHitl,
   ]);
 
   useEffect(() => {
@@ -112,4 +136,16 @@ export function useSSE(runId: string | null) {
       esRef.current = null;
     };
   }, [connect]);
+
+  useEffect(() => {
+    if (!runId) return;
+    refreshPendingHitl();
+    refreshAnalysisStatus();
+    const interval = window.setInterval(() => {
+      if (isComplete) return;
+      refreshPendingHitl();
+      refreshAnalysisStatus();
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [runId, isComplete, refreshPendingHitl, refreshAnalysisStatus]);
 }
