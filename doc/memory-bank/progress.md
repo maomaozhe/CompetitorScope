@@ -1,6 +1,6 @@
 # 进度追踪 (Progress)
 
-> 最后更新：2026-05-12
+> 最后更新：2026-05-13
 
 ---
 
@@ -97,6 +97,41 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | FastAPI mock smoke | ✅ | 创建 interactive run、3 次 pending/resume、最终报告获取通过 |
 | CLI 真实 auto | ✅ | `output/run-b7da1b70/report.md`：3 competitors / 3 profiles / 21 sources |
 | CLI 真实可观测 auto | ✅ | `output/run-d94173e0/report.md`：5 competitors / 5 profiles / 37 sources |
+
+### 2026-05-13 — Step 7/8 完成 + SSE 实时渲染问题
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| SQLite + SQLModel 持久化 | ✅ | `database.py`、`models/run.py`、`models/source.py` |
+| DELETE /analysis/{id} | ✅ | interrupt thread + 清理 RUN_STORE + 队列 sentinel |
+| API deps 依赖注入 | ✅ | `api/deps.py` |
+| Next.js 三栏布局 | ✅ | AgentFlow + ReportView + EvidencePanel |
+| HITLDialog 组件 | ✅ | CompetitorConfirm / OutlineConfirm / CollectorSupplement / FollowUp |
+| EvidencePanel 组件 | ✅ | 右侧证据面板，点击引用展开详情 |
+| SSE streaming 后端 | ✅ | `astream` + `asyncio.Queue`，事件正确推送（agent_start/complete/ report_chunk） |
+| SSE 实时渲染前端 | ✅ **已修复** | E2E 测试 2/2 通过，Planner/Collector 等节点实时更新正常 |
+
+**SSE 修复 (2026-05-13)** — 3 个 bug：
+
+1. `web/src/hooks/useSSE.ts` — `es.onmessage` 只处理无类型的 SSE 消息。`event: agent_start` 需要 `es.addEventListener("agent_start", ...)` 而不是 `es.onagent_start`。修复：改用 `addEventListener()`。
+
+2. `web/src/app/analysis/[id]/page.tsx` — `setRunId(id)` 在 render 阶段直接调用（非 useEffect），React 报错并拒绝渲染。修复：包在 `useEffect()` 里。
+
+3. `web/src/hooks/useSSE.ts` — EventSource URL 是相对路径 `/api/v1/analysis/.../stream`，被 Next.js App Router 拦截返回 404。修复：改用 `http://localhost:8000/api/v1/analysis/.../stream`。
+
+**E2E 测试结果：2/2 通过**
+- `docs/review/step7-api/2026-05-13-sse-page-loaded.png` — Planner "运行中" / "生成大纲中..."
+- `docs/review/step7-api/2026-05-13-sse-planner-complete.png` — "1/5 完成", Planner "完成", Collector "运行中"
+
+---
+
+### 2026-05-13 — 待修 Issue（记录）
+
+| Issue | 状态 | 说明 |
+|-------|------|------|
+| InputForm POST `/api/v1/analysis` 返回 404 | 待修 | Next.js 无 `/api/v1/analysis` 路由，需要 rewrite 或 absolute URL |
+| AgentFlow 只显示 Planner 实时更新，其他 Agent 不更新 | 待查 | NODE_AGENT_MAP 正确，SSE 事件有发出，需验证 updateAgent 是否对所有 Agent 生效 |
+| 报告内容只在 isComplete=true 后显示，无流式渐进输出 | 待修 | ReportView 需在 appendReport 有内容时就开始显示，不等 isComplete |
 
 ### 2026-05-12 — 调试修复记录
 

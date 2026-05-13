@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect } from "react";
 import { useSSE } from "@/hooks/useSSE";
 import { AgentFlow } from "@/components/AgentFlow";
 import { ReportView } from "@/components/ReportView";
@@ -16,10 +16,12 @@ export default function AnalysisPage({
   const { id } = use(params);
   const { runId, setRunId } = useAnalysis();
 
-  // Sync runId into context on mount
-  if (!runId) {
-    setRunId(id);
-  }
+  // Sync runId into context via useEffect (not render phase)
+  useEffect(() => {
+    if (!runId) {
+      setRunId(id);
+    }
+  }, [id, runId, setRunId]);
 
   // Connect SSE
   useSSE(id);
