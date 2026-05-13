@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
 export type AgentStatus = "idle" | "running" | "complete" | "error";
+export type HitlType = "competitor_confirm" | "outline_confirm" | "collector_supplement" | null;
 
 export interface AgentInfo {
   id: string;
@@ -12,15 +13,41 @@ export interface AgentInfo {
   message: string;
 }
 
+export interface HitlRequest {
+  type: string;
+  interrupt_id: string;
+  message: string;
+  options?: Record<string, unknown>;
+  default_response?: Record<string, unknown>;
+  timeout_seconds?: number;
+}
+
+export interface EvidenceItem {
+  evidence_id: string;
+  source_id: string;
+  source_url: string;
+  excerpt: string;
+  extracted_fact: string;
+  fact_type: string;
+  confidence: number;
+  competitor_id: string;
+}
+
 interface AnalysisContextType {
   runId: string | null;
   agents: AgentInfo[];
   reportContent: string;
   isComplete: boolean;
+  pendingHitl: HitlRequest | null;
+  evidenceItems: EvidenceItem[];
+  selectedEvidence: EvidenceItem | null;
   setRunId: (id: string | null) => void;
   updateAgent: (id: string, update: Partial<AgentInfo>) => void;
   appendReport: (chunk: string) => void;
   setComplete: () => void;
+  setPendingHitl: (req: HitlRequest | null) => void;
+  setEvidenceItems: (items: EvidenceItem[]) => void;
+  selectEvidence: (item: EvidenceItem | null) => void;
   reset: () => void;
 }
 
@@ -39,11 +66,17 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<AgentInfo[]>(DEFAULT_AGENTS);
   const [reportContent, setReportContent] = useState("");
   const [isComplete, setIsComplete] = useState(false);
+  const [pendingHitl, setPendingHitlState] = useState<HitlRequest | null>(null);
+  const [evidenceItems, setEvidenceItemsState] = useState<EvidenceItem[]>([]);
+  const [selectedEvidence, setSelectedEvidenceState] = useState<EvidenceItem | null>(null);
 
   const setRunId = useCallback((id: string | null) => {
     setRunIdState(id);
     setReportContent("");
     setIsComplete(false);
+    setPendingHitlState(null);
+    setEvidenceItemsState([]);
+    setSelectedEvidenceState(null);
     if (id) {
       setAgents(DEFAULT_AGENTS.map(a => ({ ...a, status: "idle" as AgentStatus, message: "等待启动" })));
     }
@@ -61,15 +94,35 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   const setComplete = useCallback(() => setIsComplete(true), []);
 
+  const setPendingHitl = useCallback((req: HitlRequest | null) => {
+    setPendingHitlState(req);
+  }, []);
+
+  const setEvidenceItems = useCallback((items: EvidenceItem[]) => {
+    setEvidenceItemsState(items);
+  }, []);
+
+  const selectEvidence = useCallback((item: EvidenceItem | null) => {
+    setSelectedEvidenceState(item);
+  }, []);
+
   const reset = useCallback(() => {
     setRunIdState(null);
     setReportContent("");
     setIsComplete(false);
+    setPendingHitlState(null);
+    setEvidenceItemsState([]);
+    setSelectedEvidenceState(null);
     setAgents(DEFAULT_AGENTS.map(a => ({ ...a, status: "idle" as AgentStatus, message: "等待启动" })));
   }, []);
 
   return (
-    <AnalysisContext.Provider value={{ runId, agents, reportContent, isComplete, setRunId, updateAgent, appendReport, setComplete, reset }}>
+    <AnalysisContext.Provider value={{
+      runId, agents, reportContent, isComplete,
+      pendingHitl, evidenceItems, selectedEvidence,
+      setRunId, updateAgent, appendReport, setComplete,
+      setPendingHitl, setEvidenceItems, selectEvidence, reset
+    }}>
       {children}
     </AnalysisContext.Provider>
   );

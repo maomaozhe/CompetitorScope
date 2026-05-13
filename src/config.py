@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     max_search_rounds: int = 3
     data_dir: str = "data"
+    database_url: str = ""  # e.g. "sqlite+aiosqlite:///./competitorscope.db"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

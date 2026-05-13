@@ -7,18 +7,19 @@ import ReactMarkdown from "react-markdown";
 
 function ReferenceAnchors({ content }: { content: string }) {
   // Highlight [1], [2], etc. as clickable anchors
+  const { selectEvidence, evidenceItems } = useAnalysis();
   const parts = content.split(/(\[\d+\])/g);
   return (
     <>
       {parts.map((part, i) => {
         if (/^\[\d+\]$/.test(part)) {
+          const idx = parseInt(part.slice(1, -1));
+          const item = evidenceItems[idx - 1];
           return (
             <button
               key={i}
               className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1 py-0.5 text-amber-400/80 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-xs font-mono"
-              onClick={() => {
-                /* TODO: open evidence panel */
-              }}
+              onClick={() => item && selectEvidence(item)}
             >
               {part}
             </button>

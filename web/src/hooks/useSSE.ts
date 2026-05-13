@@ -8,10 +8,23 @@ type SSEEvent =
   | { type: "agent_complete"; agent: string }
   | { type: "report_chunk"; content: string }
   | { type: "complete" }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "hitl_request"; payload: import("@/contexts/AnalysisContext").HitlRequest }
+  | { type: "hitl_resumed"; }
+  | { type: "hitl_timeout"; response: Record<string, unknown>; interrupt: Record<string, unknown> };
+
+// Import type lazily to avoid circular
+type HitlRequest = {
+  type: string;
+  interrupt_id: string;
+  message: string;
+  options?: Record<string, unknown>;
+  default_response?: Record<string, unknown>;
+  timeout_seconds?: number;
+};
 
 export function useSSE(runId: string | null) {
-  const { updateAgent, appendReport, setComplete } = useAnalysis();
+  const { updateAgent, appendReport, setComplete, setPendingHitl, setEvidenceItems } = useAnalysis();
   const esRef = useRef<EventSource | null>(null);
 
   const connect = useCallback(() => {
@@ -39,10 +52,17 @@ export function useSSE(runId: string | null) {
           case "error":
             updateAgent("planner", { status: "error", message: event.message });
             break;
+          case "hitl_request":
+            setPendingHitl(event.payload as HitlRequest);
+            break;
+          case "hitl_resumed":
+          case "hitl_timeout":
+            setPendingHitl(null);
+            break;
         }
       } catch {}
     };
-  }, [runId, updateAgent, appendReport, setComplete]);
+  }, [runId, updateAgent, appendReport, setComplete, setPendingHitl]);
 
   useEffect(() => {
     connect();

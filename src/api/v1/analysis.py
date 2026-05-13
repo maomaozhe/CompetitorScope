@@ -99,3 +99,13 @@ async def get_analysis(run_id: str):
         "pending_hitl": RUN_STORE[run_id].get("pending_interrupt") is not None,
     }
 
+
+@router.delete("/analysis/{run_id}")
+async def delete_analysis(run_id: str):
+    """Cancel a running analysis and clean up its state."""
+    if run_id not in RUN_STORE:
+        raise HTTPException(404, "Not found")
+    RUN_STORE[run_id]["done"] = True
+    RUN_STORE[run_id]["pending_interrupt"] = None
+    return {"run_id": run_id, "status": "cancelled"}
+

@@ -30,3 +30,20 @@ async def get_evidence(run_id: str):
         raise HTTPException(404, "Not found")
     evidence = evidence_items(RUN_STORE[run_id]["state"].get("evidence_items", []))
     return {"evidence": [item.model_dump(mode="json") for item in evidence]}
+
+
+@router.get("/reports/{run_id}/markdown")
+async def get_report_markdown(run_id: str):
+    """Download full report as Markdown file."""
+    if run_id not in RUN_STORE:
+        raise HTTPException(404, "Not found")
+    state = RUN_STORE[run_id]["state"]
+    report = restore_report(state.get("report"))
+    if not report:
+        raise HTTPException(404, "Report not ready")
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        content=report.content_markdown,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="report-{run_id}.md"'},
+    )

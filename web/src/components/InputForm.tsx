@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAnalysis } from "@/contexts/AnalysisContext";
+import { cn } from "@/lib/utils";
 
 export function InputForm() {
   const [query, setQuery] = useState("");
   const [competitors, setCompetitors] = useState("");
+  const [hitlMode, setHitlMode] = useState<"auto" | "interactive">("auto");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { setRunId } = useAnalysis();
@@ -23,7 +25,7 @@ export function InputForm() {
         body: JSON.stringify({
           query,
           competitors: competitors ? competitors.split(",").map((c) => c.trim()) : [],
-          hitl_mode: "auto",
+          hitl_mode: hitlMode,
         }),
       });
 
@@ -64,6 +66,31 @@ export function InputForm() {
           placeholder="Cursor, GitHub Copilot, Windsurf..."
           className="w-full rounded-xl border border-zinc-700/50 bg-zinc-800/60 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 backdrop-blur-sm transition-colors focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
         />
+      </div>
+
+      {/* HITL Mode Toggle */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-zinc-300">交互模式</label>
+        <div className="flex gap-3">
+          {(["auto", "interactive"] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setHitlMode(mode)}
+              className={cn(
+                "flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition-all",
+                hitlMode === mode
+                  ? "border-indigo-500/50 bg-indigo-500/10 text-indigo-300"
+                  : "border-zinc-700/50 bg-zinc-800/40 text-zinc-400 hover:bg-zinc-800/60"
+              )}
+            >
+              {mode === "auto" ? "⚡ 自动模式" : "🧑 交互模式"}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-500">
+          {hitlMode === "auto" ? "全自动运行，快速得到报告" : "人工确认关键节点，可干预分析方向"}
+        </p>
       </div>
 
       {/* Submit Button */}
