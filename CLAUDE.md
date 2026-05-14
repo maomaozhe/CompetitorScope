@@ -131,6 +131,7 @@ class AnalysisState(TypedDict, total=False):
 2. 决策确认： 遇到不确定的代码设计，必须先询问maomao, 不可直接行动
 3. 代码兼容： 不能写兼容性代码，除非主动要求
 4. 完成一个功能/需求就commit，commit前和我确认一下，按照开源方式规范就好
+5. 每次完成功能/需求 要更新状态，让后续agent在新上下文环境能够识别到进展。
 
 ## Testing & Verification
 
