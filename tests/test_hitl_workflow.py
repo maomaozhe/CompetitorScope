@@ -100,7 +100,7 @@ def test_auto_mode_completes_without_interrupt(monkeypatch):
     assert isinstance(result["raw_sources"][0], dict)
 
 
-def test_interactive_mode_resumes_three_hitl_gates(monkeypatch):
+def test_interactive_mode_resumes_four_hitl_gates(monkeypatch):
     _patch_external_services(monkeypatch, scrape_count=2)
     workflow = build_workflow(checkpointer=MemorySaver())
     config = {"configurable": {"thread_id": "interactive-test"}}
@@ -120,14 +120,27 @@ def test_interactive_mode_resumes_three_hitl_gates(monkeypatch):
     third_interrupt = [event for event in events if "__interrupt__" in event][0]
     assert third_interrupt["__interrupt__"][0].value["type"] == "collector_supplement"
 
-    list(workflow.stream(Command(resume={"action": "continue"}), config=config))
+    events = workflow.stream(Command(resume={"action": "continue"}), config=config)
+    fourth_interrupt = [event for event in events if "__interrupt__" in event][0]
+    assert fourth_interrupt["__interrupt__"][0].value["type"] == "comparison_plan_confirm"
+
+    list(workflow.stream(
+        Command(resume={
+            "comparison_dimensions": ["features", "pricing"],
+            "focus_notes": "Focus on product gaps and pricing.",
+        }),
+        config=config,
+    ))
     result = workflow.get_state(config).values
 
     assert result["current_stage"] == "complete"
+    assert result["comparison_dimensions"] == ["features", "pricing"]
+    assert result["comparison_focus_notes"] == "Focus on product gaps and pricing."
     assert [item["type"] for item in result["hitl_history"]] == [
         "competitor_confirm",
         "outline_confirm",
         "collector_supplement",
+        "comparison_plan_confirm",
     ]
 
 

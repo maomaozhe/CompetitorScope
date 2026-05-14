@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 interface DialogProps {
   open: boolean;
@@ -93,38 +92,128 @@ function CompetitorConfirmDialog({
   );
 }
 
-function OutlineConfirmDialog({ open, onClose, onSubmit, message }: DialogProps) {
-  const [level, setLevel] = useState<"brief" | "standard" | "detailed">("standard");
+interface OutlineConfirmDialogProps extends DialogProps {
+  outline: string;
+  dimensions: string[];
+}
+
+function OutlineConfirmDialog({
+  open,
+  onClose,
+  onSubmit,
+  message,
+  outline,
+  dimensions,
+}: OutlineConfirmDialogProps) {
+  const [draftOutline, setDraftOutline] = useState(outline);
+  const [draftDimensions, setDraftDimensions] = useState(dimensions.join(", "));
 
   if (!open) return null;
 
+  const handleSubmit = () => {
+    onSubmit({
+      outline: draftOutline,
+      dimensions: draftDimensions
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-100">确认报告大纲</h3>
+      <div className="w-full max-w-2xl rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
+        <h3 className="text-lg font-semibold text-zinc-100">确认报告大纲与分析计划</h3>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
 
-        <div className="mt-4 space-y-2">
-          {(["brief", "standard", "detailed"] as const).map(l => (
-            <button
-              key={l}
-              onClick={() => setLevel(l)}
-              className={cn(
-                "w-full rounded-lg border px-4 py-3 text-left text-sm transition-colors",
-                level === l ? "border-indigo-500/50 bg-indigo-500/10 text-zinc-100" : "border-zinc-700/50 bg-zinc-800/50 text-zinc-300 hover:bg-zinc-800"
-              )}
-            >
-              <p className="font-medium capitalize">{l === "brief" ? "简略" : l === "standard" ? "标准" : "详尽"}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                {l === "brief" ? "1000字以内，核心对比" : l === "standard" ? "2000字，覆盖4维度" : "4000字+，深度分析"}
-              </p>
-            </button>
-          ))}
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-zinc-500">分析维度（逗号分隔）</label>
+            <input
+              type="text"
+              value={draftDimensions}
+              onChange={(e) => setDraftDimensions(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-700/50 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-500">报告大纲 / 执行计划</label>
+            <textarea
+              value={draftOutline}
+              onChange={(e) => setDraftOutline(e.target.value)}
+              rows={10}
+              className="mt-1 w-full resize-none rounded-lg border border-zinc-700/50 bg-zinc-800/50 px-3 py-2 font-mono text-xs leading-5 text-zinc-200 placeholder-zinc-500"
+            />
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={onClose} className="rounded-lg border border-zinc-700/50 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">取消</button>
-          <button onClick={() => onSubmit({ outline_level: level })} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 transition-colors">确认</button>
+          <button onClick={handleSubmit} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 transition-colors">确认</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ComparisonPlanDialogProps extends DialogProps {
+  comparisonDimensions: string[];
+  focusNotes: string;
+}
+
+function ComparisonPlanDialog({
+  open,
+  onClose,
+  onSubmit,
+  message,
+  comparisonDimensions,
+  focusNotes,
+}: ComparisonPlanDialogProps) {
+  const [draftDimensions, setDraftDimensions] = useState(comparisonDimensions.join(", "));
+  const [draftFocus, setDraftFocus] = useState(focusNotes);
+
+  if (!open) return null;
+
+  const handleSubmit = () => {
+    onSubmit({
+      comparison_dimensions: draftDimensions
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      focus_notes: draftFocus,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-xl rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
+        <h3 className="text-lg font-semibold text-zinc-100">确认对比重点</h3>
+        <p className="mt-2 text-sm text-zinc-400">{message}</p>
+
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-zinc-500">主要比较维度（逗号分隔）</label>
+            <input
+              type="text"
+              value={draftDimensions}
+              onChange={(e) => setDraftDimensions(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-zinc-700/50 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-500">比较重点</label>
+            <textarea
+              value={draftFocus}
+              onChange={(e) => setDraftFocus(e.target.value)}
+              rows={6}
+              className="mt-1 w-full resize-none rounded-lg border border-zinc-700/50 bg-zinc-800/50 px-3 py-2 text-sm leading-6 text-zinc-200 placeholder-zinc-500"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={onClose} className="rounded-lg border border-zinc-700/50 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors">取消</button>
+          <button onClick={handleSubmit} className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 transition-colors">确认</button>
         </div>
       </div>
     </div>
@@ -223,6 +312,16 @@ export function HITLDialog() {
   };
   const candidates = hitl.candidates || [];
   const lowSourceCompetitors = hitl.low_source_competitors || [];
+  const outline = hitl.outline || String(hitl.default_response?.outline || "");
+  const dimensions = hitl.dimensions || (
+    Array.isArray(hitl.default_response?.dimensions) ? hitl.default_response.dimensions as string[] : []
+  );
+  const comparisonDimensions = hitl.comparison_dimensions || (
+    Array.isArray(hitl.default_response?.comparison_dimensions)
+      ? hitl.default_response.comparison_dimensions as string[]
+      : []
+  );
+  const focusNotes = hitl.focus_notes || String(hitl.default_response?.focus_notes || "");
 
   return (
     <>
@@ -241,6 +340,18 @@ export function HITLDialog() {
           onClose={handleClose}
           onSubmit={handleSubmit}
           message={hitl.message || "请选择报告详略程度"}
+          outline={outline}
+          dimensions={dimensions}
+        />
+      )}
+      {hitl.type === "comparison_plan_confirm" && (
+        <ComparisonPlanDialog
+          open={true}
+          onClose={handleClose}
+          onSubmit={handleSubmit}
+          message={hitl.message || "请确认横向对比重点"}
+          comparisonDimensions={comparisonDimensions}
+          focusNotes={focusNotes}
         />
       )}
       {hitl.type === "collector_supplement" && (

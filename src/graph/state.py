@@ -30,6 +30,8 @@ class AnalysisState(TypedDict, total=False):
     confirmed_competitors: list[dict]  # [{name, website}]
     analysis_dimensions: list[str]
     report_outline: str  # markdown outline
+    comparison_dimensions: list[str]
+    comparison_focus_notes: str
 
     # ── Flow control ──
     current_stage: Literal[

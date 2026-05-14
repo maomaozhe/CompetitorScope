@@ -43,6 +43,8 @@ def initial_state(
         "confirmed_competitors": [{"name": c, "website": ""} for c in (competitors or [])],
         "analysis_dimensions": dimensions or ["positioning", "features", "pricing", "reviews"],
         "report_outline": "",
+        "comparison_dimensions": dimensions or ["positioning", "features", "pricing", "reviews"],
+        "comparison_focus_notes": "",
         "current_stage": "planning",
         "stage_status": "Starting...",
         "error_message": None,
@@ -85,6 +87,108 @@ def _emit_event(run_id: str, event: str, data: dict) -> None:
             q.put_nowait(item)
         except asyncio.QueueFull:
             pass
+
+
+def _emit_agent_output(
+    run_id: str,
+    *,
+    agent: str,
+    node: str,
+    title: str,
+    summary: str,
+    detail: str = "",
+    artifact_type: str = "text",
+) -> None:
+    _emit_event(run_id, "agent_output", {
+        "id": f"{node}-{len(_EVENT_HISTORY.get(run_id, []))}",
+        "agent": agent,
+        "node": node,
+        "title": title,
+        "summary": summary,
+        "detail": detail,
+        "artifact_type": artifact_type,
+        "created_at": time.time(),
+    })
+
+
+def _shorten(value: Any, limit: int = 1200) -> str:
+    text = value if isinstance(value, str) else str(value)
+    return text if len(text) <= limit else f"{text[:limit].rstrip()}\n..."
+
+
+def _summarize_agent_result(node_name: str, result: dict) -> tuple[str, str, str, str] | None:
+    if not isinstance(result, dict):
+        return None
+
+    if node_name == "planner_discover":
+        candidates = result.get("candidate_competitors") or []
+        confirmed = result.get("confirmed_competitors") or []
+        names = ", ".join(item.get("name", "") for item in confirmed if isinstance(item, dict))
+        detail = "\n".join(
+            f"- {item.get('name', '')}: {item.get('website', '')}"
+            for item in candidates
+            if isinstance(item, dict)
+        )
+        return ("候选竞品已确认", f"确认 {len(confirmed)} 家竞品：{names}", detail, "competitors")
+
+    if node_name == "planner_outline":
+        dimensions = result.get("analysis_dimensions") or []
+        outline = result.get("report_outline") or ""
+        return ("分析计划已生成", f"维度：{', '.join(dimensions)}", _shorten(outline), "outline")
+
+    if node_name == "collect_competitor":
+        sources = result.get("raw_sources") or []
+        competitor_id = (result.get("finished_collectors") or [""])[0]
+        detail = "\n".join(
+            f"- {item.get('title') or item.get('url')}\n  {item.get('url')}"
+            for item in sources
+            if isinstance(item, dict)
+        )
+        return ("数据采集完成", f"{competitor_id} 收集到 {len(sources)} 条来源", _shorten(detail), "sources")
+
+    if node_name == "join_collectors":
+        return ("采集汇总完成", result.get("stage_status", "Collection complete"), "", "status")
+
+    if node_name == "analyze_competitor":
+        profiles = result.get("competitor_profiles") or []
+        evidence = result.get("evidence_items") or []
+        if not profiles:
+            competitor_id = (result.get("finished_analysts") or [""])[0]
+            return ("结构化分析跳过", f"{competitor_id} 没有可分析来源", "", "profile")
+        profile = profiles[0]
+        name = profile.get("name", "competitor") if isinstance(profile, dict) else "competitor"
+        detail = ""
+        if isinstance(profile, dict):
+            features = profile.get("features") or []
+            feature_names = [
+                item.get("name", "")
+                for item in features
+                if isinstance(item, dict) and item.get("name")
+            ]
+            detail = "\n".join([
+                f"定位：{profile.get('one_liner', '')}",
+                f"技术形态：{profile.get('tech_form', '')}",
+                f"功能：{', '.join(feature_names[:8])}",
+                f"好评：{', '.join((profile.get('positive_themes') or [])[:3])}",
+                f"吐槽：{', '.join((profile.get('negative_themes') or [])[:3])}",
+            ])
+        return ("结构化分析完成", f"{name} 产出 profile，证据 {len(evidence)} 条", detail, "profile")
+
+    if node_name == "join_analysts":
+        return ("分析汇总完成", "所有竞品结构化分析已汇总", "", "status")
+
+    if node_name == "comparator":
+        comparison = result.get("comparison_result") or {}
+        insights = comparison.get("key_insights") or [] if isinstance(comparison, dict) else []
+        detail = "\n".join(f"- {item}" for item in insights)
+        return ("横向对比完成", f"生成 {len(insights)} 条关键洞察", detail, "comparison")
+
+    if node_name == "writer":
+        report = result.get("report") or {}
+        markdown = report.get("content_markdown", "") if isinstance(report, dict) else ""
+        return ("报告生成完成", f"Markdown 报告 {len(markdown)} 字符", _shorten(markdown), "report")
+
+    return None
 
 
 def get_event_history(run_id: str) -> list[dict[str, Any]]:
@@ -163,8 +267,20 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                         return
 
                     _emit_event(run_id, "agent_complete", {"agent": agent_id, "node": node_name})
-                    # Forward report_chunk if writer finished
                     result = payload.get("result", {})
+                    summary = _summarize_agent_result(node_name, result)
+                    if summary:
+                        title, text, detail, artifact_type = summary
+                        _emit_agent_output(
+                            run_id,
+                            agent=agent_id,
+                            node=node_name,
+                            title=title,
+                            summary=text,
+                            detail=detail,
+                            artifact_type=artifact_type,
+                        )
+                    # Forward report_chunk if writer finished
                     if node_name == "writer" and isinstance(result, dict):
                         report = result.get("report")
                         if report and isinstance(report, dict) and "content_markdown" in report:

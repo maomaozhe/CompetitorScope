@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 
 export type AgentStatus = "idle" | "running" | "complete" | "error";
-export type HitlType = "competitor_confirm" | "outline_confirm" | "collector_supplement" | null;
+export type HitlType = "competitor_confirm" | "outline_confirm" | "collector_supplement" | "comparison_plan_confirm" | null;
 
 export interface AgentInfo {
   id: string;
@@ -21,10 +21,23 @@ export interface HitlRequest {
   candidates?: Array<{ name: string; website?: string }>;
   outline?: string;
   dimensions?: string[];
+  comparison_dimensions?: string[];
+  focus_notes?: string;
   low_source_competitors?: Array<{ competitor_id: string; name: string; source_count: number }>;
   options?: Record<string, unknown>;
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;
+}
+
+export interface AgentOutput {
+  id: string;
+  agent: string;
+  node: string;
+  title: string;
+  summary: string;
+  detail: string;
+  artifact_type: string;
+  created_at: number;
 }
 
 export interface EvidenceItem {
@@ -42,12 +55,14 @@ interface AnalysisContextType {
   runId: string | null;
   agents: AgentInfo[];
   reportContent: string;
+  agentOutputs: AgentOutput[];
   isComplete: boolean;
   pendingHitl: HitlRequest | null;
   evidenceItems: EvidenceItem[];
   selectedEvidence: EvidenceItem | null;
   setRunId: (id: string | null) => void;
   updateAgent: (id: string, update: Partial<AgentInfo>) => void;
+  appendAgentOutput: (output: AgentOutput) => void;
   appendReport: (chunk: string) => void;
   setComplete: () => void;
   setPendingHitl: (req: HitlRequest | null) => void;
@@ -70,6 +85,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [runId, setRunIdState] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentInfo[]>(DEFAULT_AGENTS);
   const [reportContent, setReportContent] = useState("");
+  const [agentOutputs, setAgentOutputs] = useState<AgentOutput[]>([]);
   const [isComplete, setIsComplete] = useState(false);
   const [pendingHitl, setPendingHitlState] = useState<HitlRequest | null>(null);
   const [evidenceItems, setEvidenceItemsState] = useState<EvidenceItem[]>([]);
@@ -78,6 +94,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const setRunId = useCallback((id: string | null) => {
     setRunIdState(id);
     setReportContent("");
+    setAgentOutputs([]);
     setIsComplete(false);
     setPendingHitlState(null);
     setEvidenceItemsState([]);
@@ -91,6 +108,13 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setAgents(prev =>
       prev.map(a => (a.id === id ? { ...a, ...update } : a))
     );
+  }, []);
+
+  const appendAgentOutput = useCallback((output: AgentOutput) => {
+    setAgentOutputs(prev => {
+      if (prev.some(item => item.id === output.id)) return prev;
+      return [...prev, output].slice(-80);
+    });
   }, []);
 
   const appendReport = useCallback((chunk: string) => {
@@ -114,6 +138,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     setRunIdState(null);
     setReportContent("");
+    setAgentOutputs([]);
     setIsComplete(false);
     setPendingHitlState(null);
     setEvidenceItemsState([]);
@@ -123,9 +148,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   return (
     <AnalysisContext.Provider value={{
-      runId, agents, reportContent, isComplete,
+      runId, agents, reportContent, agentOutputs, isComplete,
       pendingHitl, evidenceItems, selectedEvidence,
-      setRunId, updateAgent, appendReport, setComplete,
+      setRunId, updateAgent, appendAgentOutput, appendReport, setComplete,
       setPendingHitl, setEvidenceItems, selectEvidence, reset
     }}>
       {children}

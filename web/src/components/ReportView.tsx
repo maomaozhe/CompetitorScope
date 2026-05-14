@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { cn } from "@/lib/utils";
+import { AgentOutputStream } from "@/components/AgentOutputStream";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -68,34 +69,28 @@ function ReferenceAnchors({ children }: { children: ReactNode }) {
 }
 
 export function ReportView() {
-  const { reportContent, isComplete } = useAnalysis();
-  const [activeTab, setActiveTab] = useState<"report" | "sources">("report");
-
-  if (!reportContent && !isComplete) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="text-4xl">🔍</div>
-          <p className="text-sm text-zinc-500">报告生成中，请稍候...</p>
-        </div>
-      </div>
-    );
-  }
+  const { reportContent, isComplete, agentOutputs } = useAnalysis();
+  const [activeTab, setActiveTab] = useState<"live" | "report" | "sources">("live");
+  const tabs = [
+    { key: "live", label: "实时输出", enabled: true },
+    { key: "report", label: "报告", enabled: Boolean(reportContent) || isComplete },
+    { key: "sources", label: "证据链", enabled: isComplete },
+  ] as const;
 
   return (
     <div className="flex h-full flex-col">
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-zinc-800 px-4 pt-4">
-        {[
-          { key: "report", label: "报告" },
-          { key: "sources", label: "证据链" },
-        ].map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as "report" | "sources")}
+            onClick={() => tab.enabled && setActiveTab(tab.key)}
+            disabled={!tab.enabled}
             className={cn(
               "relative px-4 pb-3 text-sm transition-colors",
-              activeTab === tab.key ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-300"
+              activeTab === tab.key && "text-indigo-400",
+              activeTab !== tab.key && tab.enabled && "text-zinc-500 hover:text-zinc-300",
+              !tab.enabled && "cursor-not-allowed text-zinc-700"
             )}
           >
             {tab.label}
@@ -107,8 +102,11 @@ export function ReportView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
-        {activeTab === "report" ? (
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {activeTab === "live" ? (
+          <AgentOutputStream outputs={agentOutputs} />
+        ) : activeTab === "report" ? (
+          <div className="h-full overflow-y-auto p-5">
           <div className="prose prose-sm prose-invert prose-zinc max-w-none">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -132,8 +130,9 @@ export function ReportView() {
               {reportContent}
             </ReactMarkdown>
           </div>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="h-full overflow-y-auto p-5 space-y-4">
             <p className="text-sm text-zinc-500">证据链功能开发中...</p>
           </div>
         )}

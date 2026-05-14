@@ -15,6 +15,7 @@ CompetitorScope is a multi-agent competitive analysis system using LangGraph-bas
 - **验证**: `web/test_step7_8_regression.mjs` 9/9 通过；`web/test_transition_hitl_evidence.mjs` 8/8 通过，逐张覆盖 HITL 两次确认与 Planner→Collector→Analyst→Comparator→Writer handoff。证据在 `docs/review/step7-8/`。
 - **HITL 完成态回归**: `web/test_hitl_done_guard.mjs` 验证 `done=true` 后即使 pending/SSE 返回 stale HITL，也不会重新弹窗。
 - **报告 Markdown 渲染修复**: commit `42cd353` 修复 `[object Object]`、GFM 表格、中文 `**加粗**` 残留问题；`web/test_report_rendering_guard.mjs` 覆盖引用点击、`<table>`、`<strong>`。真实 URL 验证截图：`docs/review/step7-8/2026-05-14-user-report-rendering-before.png` / `...-after.png`。
+- **Agent 实时输出 + HITL 强化**: 2026-05-14 新增 SSE `agent_output` 过程产物事件，前端中间主屏幕展示实时输出流；`outline_confirm` 支持编辑大纲/维度；Comparator 前新增 `comparison_plan_confirm` 对比重点确认；首页默认 interactive。验证：`tests/test_hitl_workflow.py` 5/5、`web/test_agent_output_hitl_guard.mjs` 通过。
 - **最新文档规则提交**: commit `99af4fc` 更新完成需求后必须更新状态的协作规则。
 - **当前剩余未提交项**: `uv.lock`、`docs/review/2026-05-13-*`、`competitorscope.db`、`web/pnpm-lock.yaml`、`web/test_e2e.mjs` 等为既有/生成产物或未确认提交范围；不要在后续任务中默认带入 commit，除非 maomao 明确要求。
 
@@ -120,6 +121,7 @@ class AnalysisState(TypedDict, total=False):
 - 5 agents use LangGraph fan-out for collector/analyst paths, with HITL gates between major stages
 - FastAPI API and Next.js UI cover the Step 7/8 main path
 - HITL backend, CLI, SSE events, and frontend dialogs exist
+- Agent realtime output uses SSE `agent_output` events derived from LangGraph node results; current storage is in-memory event history, not DB-backed replay.
 - SQLite/SQLModel schema/init exists, but active API state and report/evidence reads still primarily use `RUN_STORE`
 - Report quality: functional but citations need improvement
 

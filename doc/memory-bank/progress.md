@@ -14,6 +14,7 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 - HITL 两阶段截图确认：竞品确认、报告大纲确认、确认后 resume
 - Agent handoff 截图确认：Planner→Collector→Analyst→Comparator→Writer 每个交接都显示“前一个完成 + 后一个运行中”
 - 报告内容质量遗留 `[object Object]` 已修复并补回归 guard（2026-05-14）
+- Agent 实时输出与 HITL 强化已实现（2026-05-14）：SSE 新增 `agent_output` 过程产物事件；中间主屏幕支持摘要流和展开详情；`outline_confirm` 可编辑大纲/维度；Comparator 前新增 `comparison_plan_confirm` 对比重点确认；首页默认交互模式。
 - 最近提交：`42cd353 fix report markdown rendering`，`99af4fc docs update agent progress rule`
 - 清上下文交接注意：当前 worktree 仍有未提交生成/既有产物（如 `uv.lock`、`competitorscope.db`、`docs/review/2026-05-13-*`、`web/pnpm-lock.yaml`、旧 E2E 脚本），不要默认纳入后续提交。
 
@@ -164,6 +165,18 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | ReportView Markdown 渲染 | ✅ | 不再 `String(children)`；递归处理 ReactMarkdown 文本节点；接入 `remark-gfm` 并保留真实 `<table>` DOM |
 | 回归测试 | ✅ | 后端新增 Writer structured comparison 单测；前端新增 `web/test_report_rendering_guard.mjs` |
 | 验证 | ✅ | `uv run pytest tests -q` 5 passed；ruff passed；`npm run lint` passed；`npm run build` passed；rendering guard passed |
+
+### 2026-05-14 — Agent 实时输出 + HITL 强化
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| Agent 过程输出 SSE | ✅ | 后端从 LangGraph `task_result` 生成 `agent_output`，包含 agent/node、摘要、详情、产物类型，并写入 event history 支持页面回放 |
+| 中间实时输出面板 | ✅ | `ReportView` 中新增主屏幕“实时输出”视图，报告生成前默认展示 agent 过程产物，左侧 `AgentFlow` 仅保留状态流 |
+| 大纲/维度 HITL | ✅ | `outline_confirm` 前端改为可编辑报告大纲和分析维度，提交 `outline/dimensions` 写回 state |
+| 对比重点 HITL | ✅ | Comparator 前新增 `comparison_plan_confirm`，用户可确认/修改 `comparison_dimensions` 和 `focus_notes` |
+| 默认交互模式 | ✅ | 首页 `InputForm` 默认选择 interactive，保留 auto 模式 |
+| 回归测试 | ✅ | `tests/test_hitl_workflow.py` 覆盖四个 HITL gates；`web/test_agent_output_hitl_guard.mjs` 覆盖默认交互、实时输出、对比重点弹窗 |
+| 问题流出 | ⚠️ | 初版截图 guard 只覆盖单一 HITL 场景，不足以证明各阶段 UI；已扩展 `web/test_agent_output_hitl_guard.mjs` 为 Planner / Collector / Analyst / Comparator / HITL / Writer 分阶段截图与主屏位置校验 |
 
 ### 2026-05-13 — 中间状态与耗时链排查
 

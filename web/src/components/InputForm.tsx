@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export function InputForm() {
   const [query, setQuery] = useState("");
   const [competitors, setCompetitors] = useState("");
-  const [hitlMode, setHitlMode] = useState<"auto" | "interactive">("auto");
+  const [hitlMode, setHitlMode] = useState<"auto" | "interactive">("interactive");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { setRunId } = useAnalysis();

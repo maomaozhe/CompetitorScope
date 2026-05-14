@@ -12,15 +12,29 @@ type HitlRequest = {
   candidates?: Array<{ name: string; website?: string }>;
   outline?: string;
   dimensions?: string[];
+  comparison_dimensions?: string[];
+  focus_notes?: string;
   low_source_competitors?: Array<{ competitor_id: string; name: string; source_count: number }>;
   options?: Record<string, unknown>;
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;
 };
 
+type AgentOutput = {
+  id: string;
+  agent: string;
+  node: string;
+  title: string;
+  summary: string;
+  detail: string;
+  artifact_type: string;
+  created_at: number;
+};
+
 export function useSSE(runId: string | null) {
   const {
     updateAgent,
+    appendAgentOutput,
     appendReport,
     setComplete,
     setPendingHitl,
@@ -99,6 +113,13 @@ export function useSSE(runId: string | null) {
       } catch {}
     });
 
+    es.addEventListener("agent_output", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as AgentOutput;
+        appendAgentOutput(data);
+      } catch {}
+    });
+
     es.addEventListener("report_chunk", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
@@ -143,6 +164,7 @@ export function useSSE(runId: string | null) {
   }, [
     runId,
     updateAgent,
+    appendAgentOutput,
     appendReport,
     setComplete,
     setPendingHitl,
