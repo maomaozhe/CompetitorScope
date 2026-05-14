@@ -1,6 +1,6 @@
 # 进度追踪 (Progress)
 
-> 最后更新：2026-05-13
+> 最后更新：2026-05-14
 
 ---
 
@@ -13,7 +13,7 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 - Transition/HITL 证据链：`web/test_transition_hitl_evidence.mjs` 8/8 通过
 - HITL 两阶段截图确认：竞品确认、报告大纲确认、确认后 resume
 - Agent handoff 截图确认：Planner→Collector→Analyst→Comparator→Writer 每个交接都显示“前一个完成 + 后一个运行中”
-- 遗留：最终报告内容偶现 `[object Object]`，已记录为内容质量问题，不影响本轮流程/HITL 状态验收
+- 报告内容质量遗留 `[object Object]` 已修复并补回归 guard（2026-05-14）
 
 ---
 
@@ -152,7 +152,16 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 | Agent handoff 中间态截图缺失 | ✅ 已修 | 增加后端 agent 状态快照 + 前端轮询兜底；8/8 transition/HITL 证据通过 |
 | 报告内容只在 isComplete=true 后显示 | ✅ 已澄清 | `ReportView` 收到 `reportContent` 即显示；当前后端仍是 writer 完成后一次性发完整 report_chunk，不是 token 级流式 |
 | Evidence 引用下钻 | ✅ 已修 | complete 后拉取 evidence；E2E 确认报告完成且 evidence endpoint 返回 11 条 |
-| 报告正文出现 `[object Object]` | ⚠️ 待修 | 最终截图中可见，属于 Writer 输入/序列化内容质量问题；已保留证据，不计入本轮流程/HITL 状态验收 |
+| 报告正文出现 `[object Object]` / Markdown 表格不渲染 | ✅ 已修 | Writer 结构化输入文本化 + ReportView children 递归渲染 + `remark-gfm` 表格支持；回归见 `2026-05-14-report-rendering-guard.png` |
+
+### 2026-05-14 — 报告 `[object Object]` 显性遗留修复
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| Writer 输入格式化 | ✅ | `writer_node` 对 dict/list/Pydantic comparison 值统一转成可读文本，避免对象结构进入 prompt |
+| ReportView Markdown 渲染 | ✅ | 不再 `String(children)`；递归处理 ReactMarkdown 文本节点；接入 `remark-gfm` 并保留真实 `<table>` DOM |
+| 回归测试 | ✅ | 后端新增 Writer structured comparison 单测；前端新增 `web/test_report_rendering_guard.mjs` |
+| 验证 | ✅ | `uv run pytest tests -q` 5 passed；ruff passed；`npm run lint` passed；`npm run build` passed；rendering guard passed |
 
 ### 2026-05-13 — 中间状态与耗时链排查
 

@@ -1,32 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import {
+  Children,
+  ReactNode,
+  useState,
+} from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-function ReferenceAnchors({ content }: { content: string }) {
+function ReferenceAnchors({ children }: { children: ReactNode }) {
   // Highlight [1], [2], etc. as clickable anchors
   const { selectEvidence, evidenceItems } = useAnalysis();
-  const parts = content.split(/(\[\d+\])/g);
+
+  const renderReferences = (content: string, keyPrefix: string) => {
+    const parts = content.split(/(\[\d+\])/g);
+    return parts.map((part, i) => {
+      if (/^\[\d+\]$/.test(part)) {
+        const idx = parseInt(part.slice(1, -1));
+        const item = evidenceItems[idx - 1];
+        return (
+          <button
+            key={`${keyPrefix}-${i}`}
+            className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1 py-0.5 text-amber-400/80 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-xs font-mono"
+            onClick={() => item && selectEvidence(item)}
+          >
+            {part}
+          </button>
+        );
+      }
+      return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+    });
+  };
+
+  const renderText = (content: string, keyPrefix: string) => {
+    const parts = content.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      const match = part.match(/^\*\*([^*]+)\*\*$/);
+      if (!match) {
+        return (
+          <span key={`${keyPrefix}-${i}`}>
+            {renderReferences(part, `${keyPrefix}-${i}`)}
+          </span>
+        );
+      }
+      return (
+        <strong key={`${keyPrefix}-${i}`} className="text-zinc-200 font-semibold">
+          {renderReferences(match[1], `${keyPrefix}-${i}-strong`)}
+        </strong>
+      );
+    });
+  };
+
+  const renderNode = (node: ReactNode, keyPrefix: string): ReactNode => {
+    if (typeof node === "string" || typeof node === "number") {
+      return renderText(String(node), keyPrefix);
+    }
+    return node;
+  };
+
   return (
     <>
-      {parts.map((part, i) => {
-        if (/^\[\d+\]$/.test(part)) {
-          const idx = parseInt(part.slice(1, -1));
-          const item = evidenceItems[idx - 1];
-          return (
-            <button
-              key={i}
-              className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1 py-0.5 text-amber-400/80 hover:bg-amber-500/20 hover:text-amber-300 transition-colors text-xs font-mono"
-              onClick={() => item && selectEvidence(item)}
-            >
-              {part}
-            </button>
-          );
-        }
-        return <span key={i}>{part}</span>;
-      })}
+      {Children.toArray(children).map((child, i) => renderNode(child, `ref-${i}`))}
     </>
   );
 }
@@ -75,17 +111,22 @@ export function ReportView() {
         {activeTab === "report" ? (
           <div className="prose prose-sm prose-invert prose-zinc max-w-none">
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 h1: ({ children }) => <h1 className="text-2xl font-bold text-zinc-100 mb-4 pb-2 border-b border-zinc-800">{children}</h1>,
                 h2: ({ children }) => <h2 className="text-lg font-semibold text-zinc-200 mt-6 mb-3">{children}</h2>,
                 h3: ({ children }) => <h3 className="text-base font-medium text-zinc-300 mt-4 mb-2">{children}</h3>,
-                p: ({ children }) => <p className="text-zinc-400 leading-relaxed mb-3"><ReferenceAnchors content={String(children)} /></p>,
+                p: ({ children }) => <p className="text-zinc-400 leading-relaxed mb-3"><ReferenceAnchors>{children}</ReferenceAnchors></p>,
                 ul: ({ children }) => <ul className="space-y-1.5 text-zinc-400 mb-3 list-none">{children}</ul>,
-                li: ({ children }) => <li className="flex items-start gap-2"><span className="text-indigo-400 mt-1">▸</span><span><ReferenceAnchors content={String(children)} /></span></li>,
-                strong: ({ children }) => <strong className="text-zinc-200 font-semibold">{children}</strong>,
-                table: ({ children }) => <div className="overflow-x-auto mb-4 rounded-lg border border-zinc-800">{children}</div>,
+                li: ({ children }) => <li className="flex items-start gap-2"><span className="text-indigo-400 mt-1">▸</span><span><ReferenceAnchors>{children}</ReferenceAnchors></span></li>,
+                strong: ({ children }) => <strong className="text-zinc-200 font-semibold"><ReferenceAnchors>{children}</ReferenceAnchors></strong>,
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-4 rounded-lg border border-zinc-800">
+                    <table className="w-full border-collapse">{children}</table>
+                  </div>
+                ),
                 th: ({ children }) => <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-400 bg-zinc-900/60 border-b border-zinc-800">{children}</th>,
-                td: ({ children }) => <td className="px-3 py-2 text-xs text-zinc-300 border-b border-zinc-800/50">{children}</td>,
+                td: ({ children }) => <td className="px-3 py-2 text-xs text-zinc-300 border-b border-zinc-800/50"><ReferenceAnchors>{children}</ReferenceAnchors></td>,
               }}
             >
               {reportContent}

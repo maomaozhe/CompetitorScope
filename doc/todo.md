@@ -44,11 +44,24 @@
 
 ## 报告内容质量
 
-**问题**：真实最终报告中偶现 `[object Object]`，说明 Writer 输入上下文里仍可能有对象未格式化为可读文本。
+**问题**：真实最终报告中曾偶现 `[object Object]`，说明 Writer 输入上下文和前端 Markdown children 渲染都可能把对象结构错误字符串化。
 
 **证据**：`docs/review/step7-8/2026-05-13-transition-05-final-5-of-5-report.png`
 
-**状态**：待处理。本轮先保留错误证据，流程/HITL 状态验证已通过。
+**状态**：✅ 已修（2026-05-14）。
+
+**修复**：
+- `src/graph/nodes/writer.py`：Writer prompt 输入增加结构化值文本化，dict/list/Pydantic 值统一转成可读文本，避免对象值进入最终报告上下文。
+- `web/src/components/ReportView.tsx`：引用渲染不再对 ReactMarkdown children 使用 `String(children)`，改为递归处理文本节点；接入 `remark-gfm` 并保留真实 `<table>` DOM，修复 Markdown 表格被当普通段落渲染的问题。
+- `tests/test_hitl_workflow.py`：新增 Writer structured comparison 回归测试。
+- `web/test_report_rendering_guard.mjs`：新增前端渲染 guard，验证报告不含 `[object Object]`、`[1]` 引用按钮可点击并打开证据详情、GFM table 正确渲染为 `<table>`。
+
+**验证**：
+- `uv run pytest tests -q` → 5 passed
+- `uv run ruff check src tests scripts` → passed
+- `npm run lint` → passed
+- `npm run build` → passed
+- `node web/test_report_rendering_guard.mjs` → passed，截图：`docs/review/step7-8/2026-05-14-report-rendering-guard.png`
 
 ---
 

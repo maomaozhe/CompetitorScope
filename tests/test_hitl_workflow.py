@@ -153,3 +153,62 @@ def test_cli_competitor_selection_supports_ranges_and_custom_additions():
 def test_cli_outline_prompt_can_detect_competitor_selection_text():
     assert _looks_like_competitor_selection("我只需要前三家")
     assert not _looks_like_competitor_selection("# 竞品分析报告\n## 产品定位")
+
+
+def test_writer_formats_structured_comparison_values(monkeypatch):
+    captured = {}
+
+    class CapturingWriterLLM:
+        def invoke(self, messages):
+            captured["prompt"] = messages[-1].content
+            return SimpleNamespace(content="Final report without object marker")
+
+    monkeypatch.setattr(writer, "get_llm", lambda role: CapturingWriterLLM())
+
+    state = {
+        "run_id": "writer-format-test",
+        "query": "AI IDE",
+        "report_outline": "# Outline",
+        "competitor_profiles": [{
+            "competitor_id": "alpha",
+            "name": "Alpha",
+            "website": "https://alpha.example",
+            "one_liner": "AI coding tool",
+            "target_audience": ["developers"],
+            "core_scenarios": ["coding"],
+            "market_position": "developer productivity",
+            "features": [{"name": "Autocomplete", "description": "Suggests code"}],
+            "differentiators": ["fast"],
+            "recent_updates": [],
+            "tech_form": "IDE",
+            "pricing_tiers": [{
+                "tier_name": "Free",
+                "price": "$0",
+                "key_features": ["basic"],
+            }],
+            "pricing_strategy": "freemium",
+            "positive_themes": ["useful"],
+            "negative_themes": ["limited"],
+            "review_summary": "Generally useful",
+        }],
+        "evidence_items": [{
+            "source_id": "source-1",
+            "source_url": "https://source.example",
+            "excerpt": "quote",
+            "extracted_fact": "fact",
+            "fact_type": "feature",
+            "competitor_id": "alpha",
+        }],
+        "comparison_result": {
+            "feature_table": [{"feature": "Autocomplete", "alpha": "yes"}],
+            "pricing_table": {"free": "$0"},
+            "key_insights": [{"insight": "Alpha has a free tier"}],
+            "recommendations": ["Prioritize pricing review"],
+        },
+    }
+
+    result = writer.writer_node(state)
+
+    assert result["report"]["content_markdown"] == "Final report without object marker"
+    assert '"feature": "Autocomplete"' in captured["prompt"]
+    assert '"free": "$0"' in captured["prompt"]

@@ -1,8 +1,11 @@
 """Writer node — generates the final Markdown report."""
 
+import json
 import logging
+from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel
 
 from src.graph.state import AnalysisState
 from src.graph.serialization import (
@@ -19,9 +22,51 @@ from src.schemas.domain import Report
 logger = logging.getLogger(__name__)
 
 
+def _as_text(value: Any) -> str:
+    """Render arbitrary structured values as readable prompt text."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="json")
+    if isinstance(value, list):
+        if all(isinstance(item, str) for item in value):
+            return "\n".join(f"- {item}" for item in value)
+        return json.dumps(value, ensure_ascii=False, indent=2)
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, indent=2)
+    return str(value)
+
+
+def _list_text(values: Any) -> str:
+    if not values:
+        return ""
+    if not isinstance(values, list):
+        return _as_text(values)
+    return "\n".join(f"- {_as_text(item)}" for item in values)
+
+
+def _comparison_field(raw_comparison: Any, field: str) -> Any:
+    if isinstance(raw_comparison, BaseModel):
+        return getattr(raw_comparison, field, "")
+    if isinstance(raw_comparison, dict):
+        return raw_comparison.get(field, "")
+    return ""
+
+
+def _restore_comparison(raw_comparison: Any):
+    try:
+        return comparison_result(raw_comparison)
+    except Exception:
+        logger.warning("writer: comparison_result contained non-schema values; using raw formatting")
+        return None
+
+
 def writer_node(state: AnalysisState) -> dict:
     profiles = competitor_profiles(state.get("competitor_profiles", []))
-    comparison = comparison_result(state.get("comparison_result"))
+    raw_comparison = state.get("comparison_result")
+    comparison = _restore_comparison(raw_comparison)
     evidence = evidence_items(state.get("evidence_items", []))
     outline = state.get("report_outline", "")
     logger.info("writer: start profiles=%d evidence=%d", len(profiles), len(evidence))
@@ -30,16 +75,16 @@ def writer_node(state: AnalysisState) -> dict:
     lines = []
     for p in profiles:
         pricing_str = "\n".join(
-            f"  - {t.tier_name}: {t.price} | {', '.join(t.key_features)}"
+            f"  - {t.tier_name}: {t.price} | {_list_text(t.key_features).replace(chr(10), '; ')}"
             for t in p.pricing_tiers
         )
         lines.append(f"### {p.name}")
-        lines.append(f"**定位**: {p.one_liner}")
-        lines.append(f"**目标用户**: {', '.join(p.target_audience)}")
-        lines.append(f"**技术形态**: {p.tech_form}")
+        lines.append(f"**定位**: {_as_text(p.one_liner)}")
+        lines.append(f"**目标用户**: {_list_text(p.target_audience).replace(chr(10), '; ')}")
+        lines.append(f"**技术形态**: {_as_text(p.tech_form)}")
         lines.append(f"**定价**:\n{pricing_str}")
-        lines.append(f"**好评**: {', '.join(p.positive_themes[:3])}")
-        lines.append(f"**吐槽**: {', '.join(p.negative_themes[:3])}")
+        lines.append(f"**好评**: {_list_text(p.positive_themes[:3]).replace(chr(10), '; ')}")
+        lines.append(f"**吐槽**: {_list_text(p.negative_themes[:3]).replace(chr(10), '; ')}")
         lines.append("")
 
     profiles_text = "\n".join(lines)
@@ -54,6 +99,26 @@ def writer_node(state: AnalysisState) -> dict:
 
     llm = get_llm("writer")
     logger.info("writer: invoking LLM")
+    feature_table = (
+        comparison.feature_table
+        if comparison
+        else _comparison_field(raw_comparison, "feature_table")
+    )
+    pricing_table = (
+        comparison.pricing_table
+        if comparison
+        else _comparison_field(raw_comparison, "pricing_table")
+    )
+    key_insights = (
+        comparison.key_insights
+        if comparison
+        else _comparison_field(raw_comparison, "key_insights")
+    )
+    recommendations = (
+        comparison.recommendations
+        if comparison
+        else _comparison_field(raw_comparison, "recommendations")
+    )
     resp = llm.invoke([
         SystemMessage(content=WRITER_SYSTEM),
         HumanMessage(content=f"""Report outline:
@@ -63,16 +128,16 @@ Competitor profiles:
 {profiles_text}
 
 Feature comparison:
-{comparison.feature_table if comparison else 'N/A'}
+{_as_text(feature_table) or 'N/A'}
 
 Pricing comparison:
-{comparison.pricing_table if comparison else 'N/A'}
+{_as_text(pricing_table) or 'N/A'}
 
 Key insights:
-{chr(10).join(f"- {i}" for i in (comparison.key_insights if comparison else []))}
+{_list_text(key_insights) or 'N/A'}
 
 Recommendations:
-{chr(10).join(f"- {r}" for r in (comparison.recommendations if comparison else []))}
+{_list_text(recommendations) or 'N/A'}
 """),
     ])
 
