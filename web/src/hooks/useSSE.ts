@@ -131,7 +131,7 @@ export function useSSE(runId: string | null) {
       try {
         if (isCompleteRef.current) return;
         const data = JSON.parse(e.data) as HitlRequest;
-        setPendingHitl(data);
+        setPendingHitl({ ...data, created_at: Date.now() / 1000 });
       } catch {}
     });
 

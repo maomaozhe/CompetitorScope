@@ -103,7 +103,7 @@ def planner_discover(state: AnalysisState) -> dict:
             "message": "确认本次要分析的竞品清单",
             "candidates": competitors,
             "default_response": {"competitors": default_competitors},
-            "timeout_seconds": 30,
+            "timeout_seconds": 120,
         })
         confirmed = _extract_competitor_response(response, default_competitors)
         hitl_history.append({
@@ -157,7 +157,7 @@ def planner_outline(state: AnalysisState) -> dict:
             "outline": outline,
             "dimensions": dimensions,
             "default_response": {"outline": outline, "dimensions": dimensions},
-            "timeout_seconds": 30,
+            "timeout_seconds": 120,
         })
         outline, dimensions = _extract_outline_response(response, outline, dimensions)
         hitl_history.append({

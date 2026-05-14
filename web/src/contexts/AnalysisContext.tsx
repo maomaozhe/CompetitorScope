@@ -27,6 +27,7 @@ export interface HitlRequest {
   options?: Record<string, unknown>;
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;
+  created_at?: number;
 }
 
 export interface AgentOutput {

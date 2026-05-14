@@ -1,14 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { api } from "@/lib/api";
+
+function useCountdown(timeoutSeconds: number, createdAt: number) {
+  const [remaining, setRemaining] = useState(timeoutSeconds);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsed = Date.now() / 1000 - createdAt;
+      const left = Math.max(0, timeoutSeconds - elapsed);
+      setRemaining(Math.floor(left));
+      if (left <= 0) clearInterval(interval);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timeoutSeconds, createdAt]);
+
+  return remaining;
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
 
 interface DialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (response: Record<string, unknown>) => void;
   message: string;
+  remaining?: number;
 }
 
 interface CompetitorConfirmDialogProps extends DialogProps {
@@ -21,6 +45,7 @@ function CompetitorConfirmDialog({
   onSubmit,
   message,
   candidates,
+  remaining,
 }: CompetitorConfirmDialogProps) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(candidates.slice(0, 5).map((item) => item.name)),
@@ -52,7 +77,14 @@ function CompetitorConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-100">确认竞品</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-zinc-100">确认竞品</h3>
+          {remaining !== undefined && (
+            <div className="text-sm text-zinc-400">
+              剩余时间: <span className={remaining <= 10 ? "text-red-400 font-semibold" : "text-zinc-300"}>{formatTime(remaining)}</span>
+            </div>
+          )}
+        </div>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
 
         <div className="mt-4 space-y-2">
@@ -104,6 +136,7 @@ function OutlineConfirmDialog({
   message,
   outline,
   dimensions,
+  remaining,
 }: OutlineConfirmDialogProps) {
   const [draftOutline, setDraftOutline] = useState(outline);
   const [draftDimensions, setDraftDimensions] = useState(dimensions.join(", "));
@@ -123,7 +156,14 @@ function OutlineConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-2xl rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-100">确认报告大纲与分析计划</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-zinc-100">确认报告大纲与分析计划</h3>
+          {remaining !== undefined && (
+            <div className="text-sm text-zinc-400">
+              剩余时间: <span className={remaining <= 10 ? "text-red-400 font-semibold" : "text-zinc-300"}>{formatTime(remaining)}</span>
+            </div>
+          )}
+        </div>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
 
         <div className="mt-4 space-y-4">
@@ -168,6 +208,7 @@ function ComparisonPlanDialog({
   message,
   comparisonDimensions,
   focusNotes,
+  remaining,
 }: ComparisonPlanDialogProps) {
   const [draftDimensions, setDraftDimensions] = useState(comparisonDimensions.join(", "));
   const [draftFocus, setDraftFocus] = useState(focusNotes);
@@ -187,7 +228,14 @@ function ComparisonPlanDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-xl rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-100">确认对比重点</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-zinc-100">确认对比重点</h3>
+          {remaining !== undefined && (
+            <div className="text-sm text-zinc-400">
+              剩余时间: <span className={remaining <= 10 ? "text-red-400 font-semibold" : "text-zinc-300"}>{formatTime(remaining)}</span>
+            </div>
+          )}
+        </div>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
 
         <div className="mt-4 space-y-4">
@@ -229,6 +277,7 @@ function CollectorSupplementDialog({
   onSubmit,
   message,
   lowSourceCompetitors,
+  remaining,
 }: CollectorSupplementDialogProps) {
   const [urlsByCompetitor, setUrlsByCompetitor] = useState<Record<string, string>>({});
 
@@ -246,7 +295,14 @@ function CollectorSupplementDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-zinc-700/50 bg-zinc-900/95 p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-100">补充数据来源</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-zinc-100">补充数据来源</h3>
+          {remaining !== undefined && (
+            <div className="text-sm text-zinc-400">
+              剩余时间: <span className={remaining <= 10 ? "text-red-400 font-semibold" : "text-zinc-300"}>{formatTime(remaining)}</span>
+            </div>
+          )}
+        </div>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
 
         <div className="mt-4 space-y-3">
@@ -290,6 +346,10 @@ export function HITLDialog() {
   const hitl = pendingHitl || localHitl;
   if (!hitl) return null;
 
+  const timeoutSeconds = hitl.timeout_seconds || 120;
+  const createdAt = hitl.created_at || Date.now() / 1000;
+  const remaining = useCountdown(timeoutSeconds, createdAt);
+
   const handleClose = () => {
     setError("");
     setPendingHitl(null);
@@ -332,6 +392,7 @@ export function HITLDialog() {
           onSubmit={handleSubmit}
           message={hitl.message || "请确认要分析的竞品"}
           candidates={candidates}
+          remaining={remaining}
         />
       )}
       {hitl.type === "outline_confirm" && (
@@ -342,6 +403,7 @@ export function HITLDialog() {
           message={hitl.message || "请选择报告详略程度"}
           outline={outline}
           dimensions={dimensions}
+          remaining={remaining}
         />
       )}
       {hitl.type === "comparison_plan_confirm" && (
@@ -352,6 +414,7 @@ export function HITLDialog() {
           message={hitl.message || "请确认横向对比重点"}
           comparisonDimensions={comparisonDimensions}
           focusNotes={focusNotes}
+          remaining={remaining}
         />
       )}
       {hitl.type === "collector_supplement" && (
@@ -361,6 +424,7 @@ export function HITLDialog() {
           onSubmit={handleSubmit}
           message={hitl.message || "部分竞品数据较少，请补充来源"}
           lowSourceCompetitors={lowSourceCompetitors}
+          remaining={remaining}
         />
       )}
       {error && (

@@ -56,7 +56,7 @@ def comparator_node(state: AnalysisState) -> dict:
                 "comparison_dimensions": dimensions,
                 "focus_notes": focus_notes,
             },
-            "timeout_seconds": 30,
+            "timeout_seconds": 120,
         })
         dimensions, focus_notes = _normalize_plan_response(response, dimensions, focus_notes)
         hitl_history.append({

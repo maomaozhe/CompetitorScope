@@ -167,7 +167,7 @@ def join_collectors(state: AnalysisState) -> dict:
         "message": "部分竞品有效来源少于 3 条，请补充 URL、继续已有数据或跳过竞品",
         "low_source_competitors": low_source_items,
         "default_response": {"action": "continue", "supplement_urls": {}, "skip_competitors": []},
-        "timeout_seconds": 30,
+        "timeout_seconds": 120,
     })
 
     action, supplement_urls, skipped = _normalize_supplement_response(response)

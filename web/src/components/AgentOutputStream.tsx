@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { AgentOutput } from "@/contexts/AnalysisContext";
 import { cn } from "@/lib/utils";
 
@@ -51,9 +53,31 @@ function OutputItem({ output }: { output: AgentOutput }) {
         <p className="mt-1 text-sm leading-6 text-zinc-400">{output.summary}</p>
       </button>
       {open && hasDetail && (
-        <pre className="max-h-72 overflow-auto border-t border-zinc-800/70 px-4 py-3 text-xs leading-6 text-zinc-400 whitespace-pre-wrap">
-          {output.detail}
-        </pre>
+        <div className="max-h-72 overflow-auto border-t border-zinc-800/70 px-4 py-3">
+          <div className="prose prose-xs prose-invert prose-zinc max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                p: ({ children }) => <p className="text-xs leading-6 text-zinc-400 mb-2">{children}</p>,
+                ul: ({ children }) => <ul className="space-y-1 text-xs text-zinc-400 mb-2 list-none">{children}</ul>,
+                li: ({ children }) => <li className="flex items-start gap-1.5"><span className="text-indigo-400 mt-0.5">▸</span><span>{children}</span></li>,
+                strong: ({ children }) => <strong className="text-zinc-200 font-semibold">{children}</strong>,
+                code: ({ children }) => <code className="rounded bg-zinc-800 px-1 py-0.5 text-xs text-zinc-300">{children}</code>,
+                a: ({ href, children }) => <a href={href} className="text-indigo-400 hover:text-indigo-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                h3: ({ children }) => <h3 className="text-xs font-semibold text-zinc-300 mt-3 mb-1.5">{children}</h3>,
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-2 rounded border border-zinc-800">
+                    <table className="w-full border-collapse text-xs">{children}</table>
+                  </div>
+                ),
+                th: ({ children }) => <th className="px-2 py-1 text-left text-xs font-semibold text-zinc-400 bg-zinc-900/60 border-b border-zinc-800">{children}</th>,
+                td: ({ children }) => <td className="px-2 py-1 text-xs text-zinc-300 border-b border-zinc-800/50">{children}</td>,
+              }}
+            >
+              {output.detail}
+            </ReactMarkdown>
+          </div>
+        </div>
       )}
     </article>
   );
