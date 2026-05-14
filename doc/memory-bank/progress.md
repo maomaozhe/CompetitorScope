@@ -14,6 +14,8 @@ Pipeline 全流程（Planner→HITL gates→Collector→Analyst→Comparator→W
 - HITL 两阶段截图确认：竞品确认、报告大纲确认、确认后 resume
 - Agent handoff 截图确认：Planner→Collector→Analyst→Comparator→Writer 每个交接都显示“前一个完成 + 后一个运行中”
 - 报告内容质量遗留 `[object Object]` 已修复并补回归 guard（2026-05-14）
+- 最近提交：`42cd353 fix report markdown rendering`，`99af4fc docs update agent progress rule`
+- 清上下文交接注意：当前 worktree 仍有未提交生成/既有产物（如 `uv.lock`、`competitorscope.db`、`docs/review/2026-05-13-*`、`web/pnpm-lock.yaml`、旧 E2E 脚本），不要默认纳入后续提交。
 
 ---
 
