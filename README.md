@@ -4,6 +4,16 @@
 
 CompetitorScope 是一个多 Agent 竞品分析系统，用于从用户输入的赛道或产品问题出发，规划竞品清单、采集公开信息、提炼证据、比较差异，并生成带证据链的 Markdown 报告。
 
+## 效果展示
+<img width="2870" height="1548" alt="image" src="https://github.com/user-attachments/assets/0af809f9-441a-42d9-bb20-ba4fff14eb21" />
+
+<img width="2846" height="1530" alt="image" src="https://github.com/user-attachments/assets/3e22d974-4bd8-421c-b801-aa6c0534ddf1" />
+<img width="2686" height="1492" alt="image" src="https://github.com/user-attachments/assets/45cbda8f-ec3b-4e56-b9b9-34dcff3e164a" />
+
+
+<img width="2786" height="1528" alt="image" src="https://github.com/user-attachments/assets/8e570475-d3c7-4c00-aa0e-34c9ccaef1e8" />
+
+
 ## 项目简介
 
 系统围绕 LangGraph 工作流组织多个 Agent：Planner 负责竞品和报告规划，Collector 负责搜索和采集，Analyst 负责单个竞品画像，Comparator 负责横向对比，Writer 负责最终报告生成。前端提供实时进度、Agent 输出流、人机确认（HITL）、证据面板和报告查看。
