@@ -5,6 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import interrupt
 
+from src.graph.runtime_events import emit_agent_output
 from src.graph.state import AnalysisState
 from src.graph.serialization import competitor_profiles, dump_model
 from src.prompts.comparator import COMPARATOR_SYSTEM
@@ -36,6 +37,13 @@ def comparator_node(state: AnalysisState) -> dict:
     if not profiles:
         return {"error_message": "No profiles to compare"}
     logger.info("comparator: start profiles=%d", len(profiles))
+    emit_agent_output(
+        agent="comparator",
+        node="comparator",
+        title="准备横向对比",
+        summary=f"正在合并 {len(profiles)} 个竞品 profile",
+        artifact_type="comparison",
+    )
 
     dimensions = _default_comparison_dimensions(state)
     focus_notes = state.get("comparison_focus_notes") or (
@@ -84,6 +92,14 @@ def comparator_node(state: AnalysisState) -> dict:
 
     llm = get_llm("comparator")
     logger.info("comparator: invoking LLM summary_chars=%d", len(content))
+    emit_agent_output(
+        agent="comparator",
+        node="comparator",
+        title="执行横向对比",
+        summary=f"比较维度：{', '.join(dimensions)}",
+        detail=focus_notes,
+        artifact_type="comparison",
+    )
     resp = llm.invoke([
         SystemMessage(content=COMPARATOR_SYSTEM),
         HumanMessage(content=(
@@ -105,6 +121,14 @@ def comparator_node(state: AnalysisState) -> dict:
         recommendations=data.get("recommendations", []),
     )
     logger.info("comparator: done insights=%d recommendations=%d", len(result.key_insights), len(result.recommendations))
+    emit_agent_output(
+        agent="comparator",
+        node="comparator",
+        title="横向对比完成",
+        summary=f"生成 {len(result.key_insights)} 条洞察和 {len(result.recommendations)} 条建议",
+        detail="\n".join(f"- {item}" for item in result.key_insights),
+        artifact_type="comparison",
+    )
 
     return {
         "comparison_result": dump_model(result),

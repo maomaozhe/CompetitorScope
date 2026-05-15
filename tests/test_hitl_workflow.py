@@ -10,6 +10,7 @@ import src.graph.nodes.comparator as comparator
 import src.graph.nodes.planner as planner
 import src.graph.nodes.writer as writer
 from src.api.v1.runtime import initial_state
+from src.graph.runtime_events import reset_event_emitter, set_event_emitter
 from src.graph.workflow import build_workflow
 from scripts.run_local import _looks_like_competitor_selection, _parse_competitor_selection
 
@@ -225,3 +226,36 @@ def test_writer_formats_structured_comparison_values(monkeypatch):
     assert result["report"]["content_markdown"] == "Final report without object marker"
     assert '"feature": "Autocomplete"' in captured["prompt"]
     assert '"free": "$0"' in captured["prompt"]
+
+
+def test_writer_streams_report_chunks(monkeypatch):
+    events = []
+
+    class StreamingWriterLLM:
+        def stream(self, messages):
+            yield SimpleNamespace(content="# Report\n\n")
+            yield SimpleNamespace(content="Body")
+
+        def invoke(self, messages):
+            raise AssertionError("streaming writer should not fall back to invoke")
+
+    monkeypatch.setattr(writer, "get_llm", lambda role: StreamingWriterLLM())
+    token = set_event_emitter(lambda event, data: events.append({"event": event, "data": data}))
+    try:
+        result = writer.writer_node({
+            "run_id": "writer-stream-test",
+            "query": "AI IDE",
+            "report_outline": "# Outline",
+            "competitor_profiles": [],
+            "evidence_items": [],
+            "comparison_result": {},
+        })
+    finally:
+        reset_event_emitter(token)
+
+    assert result["report"]["content_markdown"] == "# Report\n\nBody"
+    assert [
+        item["data"]["content"]
+        for item in events
+        if item["event"] == "report_chunk"
+    ] == ["# Report\n\n", "Body"]

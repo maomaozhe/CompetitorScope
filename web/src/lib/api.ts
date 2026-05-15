@@ -24,6 +24,16 @@ export interface AnalysisStatus {
     status: "idle" | "running" | "complete" | "error";
     message: string;
   }>;
+  agent_outputs?: Array<{
+    id: string;
+    agent: string;
+    node: string;
+    title: string;
+    summary: string;
+    detail: string;
+    artifact_type: string;
+    created_at: number;
+  }>;
 }
 
 export interface ReportResponse {
@@ -102,7 +112,7 @@ export const api = {
 
   async getPendingHitl(
     runId: string,
-  ): Promise<{ pending: boolean; payload?: Record<string, unknown> }> {
+  ): Promise<{ pending: boolean; payload?: Record<string, unknown>; created_at?: number }> {
     const res = await fetch(`${BASE}/analysis/${runId}/hitl/pending`);
     if (!res.ok) throw new Error(`getPendingHitl failed: ${res.status}`);
     return res.json();

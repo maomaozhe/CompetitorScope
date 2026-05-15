@@ -5,6 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import interrupt
 
+from src.graph.runtime_events import emit_agent_output
 from src.graph.state import AnalysisState
 from src.prompts.planner import PLANNER_SYSTEM
 from src.services.llm import get_llm, extract_json
@@ -34,8 +35,20 @@ def _discover(query: str) -> tuple[list[dict], list[str], str]:
     llm = get_llm("planner")
 
     logger.info("planner_discover: searching competitors query=%s", query)
+    emit_agent_output(
+        agent="planner",
+        node="planner_discover",
+        title="开始发现竞品",
+        summary=f"正在搜索与“{query}”相关的竞品线索",
+    )
     search_results = search(f"top competitors {query}", max_results=8)
     logger.info("planner_discover: search returned %d results", len(search_results))
+    emit_agent_output(
+        agent="planner",
+        node="planner_discover",
+        title="搜索结果已返回",
+        summary=f"找到 {len(search_results)} 条候选搜索结果，准备交给规划模型筛选",
+    )
     search_context = "\n".join(
         f"- {r['title']}: {r['url']} | {r['content'][:200]}"
         for r in search_results
@@ -46,6 +59,12 @@ def _discover(query: str) -> tuple[list[dict], list[str], str]:
         HumanMessage(content=f"Query: {query}\n\nSearch results:\n{search_context}"),
     ]
     logger.info("planner_discover: invoking planner LLM")
+    emit_agent_output(
+        agent="planner",
+        node="planner_discover",
+        title="筛选候选竞品",
+        summary="规划模型正在提取竞品、分析维度和初始大纲",
+    )
     response = llm.invoke(messages)
     parsed = extract_json(response.content)
 
@@ -60,6 +79,14 @@ def _discover(query: str) -> tuple[list[dict], list[str], str]:
         ]
 
     logger.info("planner_discover: selected %d candidate competitors", len(competitors))
+    emit_agent_output(
+        agent="planner",
+        node="planner_discover",
+        title="候选竞品已整理",
+        summary=f"筛选出 {len(competitors)} 个候选竞品",
+        detail=", ".join(item.get("name", "") for item in competitors),
+        artifact_type="competitors",
+    )
     return competitors, dimensions, outline
 
 
@@ -135,6 +162,14 @@ def planner_outline(state: AnalysisState) -> dict:
         names = ", ".join(c["name"] for c in competitors)
         llm = get_llm("planner")
         logger.info("planner_outline: invoking planner LLM for outline competitors=%s", names)
+        emit_agent_output(
+            agent="planner",
+            node="planner_outline",
+            title="生成报告大纲",
+            summary=f"正在为 {len(competitors)} 家竞品生成分析大纲",
+            detail=names,
+            artifact_type="outline",
+        )
         response = llm.invoke([
             SystemMessage(content=PLANNER_SYSTEM),
             HumanMessage(content=f"Query: {query}\nConfirmed competitors: {names}\nDimensions: {dimensions}"),
@@ -146,6 +181,14 @@ def planner_outline(state: AnalysisState) -> dict:
             "## 4. 关键洞察\n## 5. 建议"
         )
         dimensions = parsed.get("dimensions", dimensions)
+        emit_agent_output(
+            agent="planner",
+            node="planner_outline",
+            title="报告大纲已生成",
+            summary=f"确认 {len(dimensions)} 个分析维度",
+            detail=outline,
+            artifact_type="outline",
+        )
 
     hitl_history = []
     if state.get("hitl_mode", "auto") == "interactive":

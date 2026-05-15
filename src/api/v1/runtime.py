@@ -9,6 +9,7 @@ from typing import Any
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
+from src.graph.runtime_events import reset_event_emitter, set_event_emitter
 from src.graph.state import AnalysisState
 from src.graph.workflow import build_workflow
 
@@ -17,10 +18,11 @@ CHECKPOINTER = MemorySaver()
 WORKFLOW = build_workflow(checkpointer=CHECKPOINTER)
 RUN_STORE: dict[str, dict[str, Any]] = {}
 
-# Per-run event queues for true SSE streaming (replaces polling)
-# Maps run_id → asyncio.Queue of SSE event dicts
-_EVENT_QUEUES: dict[str, asyncio.Queue] = {}
+# Per-run append-only event history for SSE streaming. Each connection keeps its
+# own last seen sequence so multiple clients do not compete for a shared queue.
 _EVENT_HISTORY: dict[str, list[dict[str, Any]]] = {}
+_EVENT_CONDITIONS: dict[str, asyncio.Condition] = {}
+_EVENT_SEQ: dict[str, int] = {}
 
 
 def graph_config(run_id: str) -> dict:
@@ -68,25 +70,33 @@ def create_run(state: AnalysisState) -> None:
         "done": False,
         "pending_interrupt": None,
         "created_at": time.time(),
+        "writer_streamed": False,
     }
-    _EVENT_QUEUES[run_id] = asyncio.Queue()
     _EVENT_HISTORY[run_id] = []
-
-
-def get_event_queue(run_id: str) -> asyncio.Queue | None:
-    return _EVENT_QUEUES.get(run_id)
+    _EVENT_CONDITIONS[run_id] = asyncio.Condition()
+    _EVENT_SEQ[run_id] = 0
 
 
 def _emit_event(run_id: str, event: str, data: dict) -> None:
-    """Emit an SSE event to the run's queue (non-blocking)."""
-    item = {"event": event, "data": data}
+    """Append an SSE event and wake all stream readers."""
+    _EVENT_SEQ[run_id] = _EVENT_SEQ.get(run_id, 0) + 1
+    item = {"seq": _EVENT_SEQ[run_id], "event": event, "data": data}
     _EVENT_HISTORY.setdefault(run_id, []).append(item)
-    q = _EVENT_QUEUES.get(run_id)
-    if q:
-        try:
-            q.put_nowait(item)
-        except asyncio.QueueFull:
-            pass
+    if event == "report_chunk" and data.get("content"):
+        RUN_STORE.get(run_id, {})["writer_streamed"] = True
+
+    condition = _EVENT_CONDITIONS.get(run_id)
+    if condition is None:
+        return
+
+    async def _notify() -> None:
+        async with condition:
+            condition.notify_all()
+
+    try:
+        asyncio.get_running_loop().create_task(_notify())
+    except RuntimeError:
+        pass
 
 
 def _emit_agent_output(
@@ -195,6 +205,29 @@ def get_event_history(run_id: str) -> list[dict[str, Any]]:
     return list(_EVENT_HISTORY.get(run_id, []))
 
 
+async def wait_for_events_after(
+    run_id: str,
+    last_seq: int,
+    *,
+    timeout: float = 0.5,
+) -> list[dict[str, Any]]:
+    """Wait until this run has events newer than last_seq, then return them."""
+    condition = _EVENT_CONDITIONS.get(run_id)
+    if condition is None:
+        await asyncio.sleep(timeout)
+        return [item for item in get_event_history(run_id) if item.get("seq", 0) > last_seq]
+
+    async with condition:
+        pending = [item for item in get_event_history(run_id) if item.get("seq", 0) > last_seq]
+        if pending:
+            return pending
+        try:
+            await asyncio.wait_for(condition.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
+        return [item for item in get_event_history(run_id) if item.get("seq", 0) > last_seq]
+
+
 async def _snapshot_state(run_id: str) -> dict:
     snapshot = WORKFLOW.get_state(graph_config(run_id))
     values = dict(snapshot.values or {})
@@ -208,6 +241,7 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
     RUN_STORE[run_id]["done"] = False
     RUN_STORE[run_id]["pending_interrupt"] = None
     close_stream = True
+    emitter_token = set_event_emitter(lambda event, data: _emit_event(run_id, event, data))
 
     # Map node names → agent IDs for SSE events
     NODE_AGENT_MAP = {
@@ -243,31 +277,9 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                 if error:
                     _emit_event(run_id, "error", {"agent": agent_id, "message": str(error)})
                 else:
-                    interrupts = payload.get("interrupts") or []
-                    if interrupts:
-                        interrupt_obj = interrupts[0]
-                        value = interrupt_obj.get("value", {}) if isinstance(interrupt_obj, dict) else {}
-                        if isinstance(value, dict):
-                            value["interrupt_id"] = interrupt_obj.get("id", "")
-                        else:
-                            value = {"interrupt_id": interrupt_obj.get("id", "")}
-                        RUN_STORE[run_id]["pending_interrupt"] = {
-                            "payload": value if isinstance(value, dict) else {},
-                            "created_at": time.time(),
-                        }
-                        state = await _snapshot_state(run_id)
-                        state["current_stage"] = state.get("current_stage", "planning")
-                        state["stage_status"] = "Waiting for human input"
-                        RUN_STORE[run_id]["state"] = state
-                        _emit_event(run_id, "hitl_request", value if isinstance(value, dict) else {})
-                        asyncio.create_task(
-                            _auto_resume_after_timeout(run_id, value if isinstance(value, dict) else {})
-                        )
-                        close_stream = False
-                        return
-
-                    _emit_event(run_id, "agent_complete", {"agent": agent_id, "node": node_name})
                     result = payload.get("result", {})
+                    # Emit agent_output for ALL nodes (including those about to interrupt)
+                    # before checking interrupts, so the UI always sees the output summary.
                     summary = _summarize_agent_result(node_name, result)
                     if summary:
                         title, text, detail, artifact_type = summary
@@ -280,10 +292,45 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                             detail=detail,
                             artifact_type=artifact_type,
                         )
+
+                    interrupts = payload.get("interrupts") or []
+                    if interrupts:
+                        interrupt_obj = interrupts[0]
+                        value = interrupt_obj.get("value", {}) if isinstance(interrupt_obj, dict) else {}
+                        if isinstance(value, dict):
+                            value["interrupt_id"] = interrupt_obj.get("id", "")
+                        else:
+                            value = {"interrupt_id": interrupt_obj.get("id", "")}
+                        created_at = time.time()
+                        RUN_STORE[run_id]["pending_interrupt"] = {
+                            "payload": value if isinstance(value, dict) else {},
+                            "created_at": created_at,
+                        }
+                        state = await _snapshot_state(run_id)
+                        state["current_stage"] = state.get("current_stage", "planning")
+                        state["stage_status"] = "Waiting for human input"
+                        RUN_STORE[run_id]["state"] = state
+                        _emit_event(run_id, "hitl_request", {
+                            **value,
+                            "created_at": created_at,
+                        })
+                        asyncio.create_task(
+                            _auto_resume_after_timeout(run_id, value if isinstance(value, dict) else {})
+                        )
+                        close_stream = False
+                        return
+
+                    # Only reached for non-interrupting nodes
+                    _emit_event(run_id, "agent_complete", {"agent": agent_id, "node": node_name})
                     # Forward report_chunk if writer finished
                     if node_name == "writer" and isinstance(result, dict):
                         report = result.get("report")
-                        if report and isinstance(report, dict) and "content_markdown" in report:
+                        if (
+                            report
+                            and isinstance(report, dict)
+                            and "content_markdown" in report
+                            and not RUN_STORE[run_id].get("writer_streamed")
+                        ):
                             _emit_event(run_id, "report_chunk", {"content": report["content_markdown"]})
 
             elif event_type == "__interrupt__":
@@ -294,15 +341,19 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
                         value["interrupt_id"] = interrupt_obj.get("id", "")
                     else:
                         value = {"interrupt_id": interrupt_obj.get("id", "")}
+                    created_at = time.time()
                     RUN_STORE[run_id]["pending_interrupt"] = {
                         "payload": value if isinstance(value, dict) else {},
-                        "created_at": time.time(),
+                        "created_at": created_at,
                     }
                     state = await _snapshot_state(run_id)
                     state["current_stage"] = state.get("current_stage", "planning")
                     state["stage_status"] = "Waiting for human input"
                     RUN_STORE[run_id]["state"] = state
-                    _emit_event(run_id, "hitl_request", value if isinstance(value, dict) else {})
+                    _emit_event(run_id, "hitl_request", {
+                        **value,
+                        "created_at": created_at,
+                    })
                     asyncio.create_task(_auto_resume_after_timeout(run_id, value if isinstance(value, dict) else {}))
                     close_stream = False
                     return
@@ -327,13 +378,12 @@ async def run_until_pause(run_id: str, graph_input: AnalysisState | Command) -> 
         RUN_STORE[run_id]["pending_interrupt"] = None
         _emit_event(run_id, "error", {"message": str(exc)})
     finally:
-        # Signal end-of-stream
-        q = _EVENT_QUEUES.get(run_id)
-        if close_stream and q:
-            try:
-                q.put_nowait(None)  # None = sentinel for "done"
-            except asyncio.QueueFull:
-                pass
+        reset_event_emitter(emitter_token)
+        if close_stream:
+            condition = _EVENT_CONDITIONS.get(run_id)
+            if condition is not None:
+                async with condition:
+                    condition.notify_all()
 
 
 def _node_status_message(node_name: str) -> str:

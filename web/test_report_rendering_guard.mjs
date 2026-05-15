@@ -14,6 +14,7 @@ async function main() {
   const page = await context.newPage();
 
   await page.route(`**/api/v1/analysis/${RUN_ID}/stream`, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
     await route.fulfill({
       status: 200,
       headers: {
@@ -95,6 +96,8 @@ async function main() {
 
   await page.goto(`${FRONTEND}/analysis/${RUN_ID}`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
+  await page.getByRole("button", { name: "报告", exact: true }).click({ timeout: 5000 });
+  await page.waitForTimeout(300);
 
   const reportText = await page.locator("main").innerText();
   const firstReference = page.locator("main button", { hasText: "[1]" }).first();

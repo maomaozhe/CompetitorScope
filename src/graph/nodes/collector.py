@@ -5,6 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Send, interrupt
 
+from src.graph.runtime_events import emit_agent_output
 from src.graph.state import AnalysisState
 from src.graph.serialization import dump_models, raw_sources as restore_raw_sources
 from src.prompts.collector import COLLECTOR_SYSTEM
@@ -52,23 +53,58 @@ def collect_competitor(state: AnalysisState) -> dict:
     # Ask LLM what to search
     llm = get_llm("collector")
     logger.info("collector: invoking query planner LLM competitor=%s", name)
+    emit_agent_output(
+        agent="collector",
+        node="collect_competitor",
+        title="规划采集查询",
+        summary=f"正在为 {name} 生成搜索查询",
+    )
     resp = llm.invoke([
         SystemMessage(content=COLLECTOR_SYSTEM),
         HumanMessage(content=f"Competitor: {name}\nWebsite: {competitor.get('website', '')}"),
     ])
     queries_data = extract_json(resp.content)
+    queries = queries_data.get("queries", [])[:4]
+    emit_agent_output(
+        agent="collector",
+        node="collect_competitor",
+        title="搜索查询已生成",
+        summary=f"{name} 将执行 {len(queries)} 个查询",
+        detail="\n".join(f"- {item.get('query', '')}" for item in queries if isinstance(item, dict)),
+        artifact_type="sources",
+    )
 
     # Run searches + scrapes
-    for qitem in queries_data.get("queries", [])[:4]:
+    for qitem in queries:
         q = qitem.get("query", "")
         logger.info("collector: searching competitor=%s query=%s", name, q)
+        emit_agent_output(
+            agent="collector",
+            node="collect_competitor",
+            title="搜索来源",
+            summary=f"{name}: {q}",
+        )
         results = search(q, max_results=3)
         logger.info("collector: search results competitor=%s count=%d", name, len(results))
+        emit_agent_output(
+            agent="collector",
+            node="collect_competitor",
+            title="搜索结果已返回",
+            summary=f"{name} 针对该查询找到 {len(results)} 条结果",
+            detail="\n".join(f"- {r.get('title')}: {r.get('url')}" for r in results),
+            artifact_type="sources",
+        )
 
         # Scrape top results
         for r in results[:2]:
             try:
                 logger.info("collector: scraping competitor=%s url=%s", name, r["url"])
+                emit_agent_output(
+                    agent="collector",
+                    node="collect_competitor",
+                    title="抓取网页",
+                    summary=f"{name}: {r['url']}",
+                )
                 scraped = scrape(r["url"])
                 raw_sources.append(RawSource(
                     competitor_id=comp_id,
@@ -83,6 +119,14 @@ def collect_competitor(state: AnalysisState) -> dict:
                 pass
 
     logger.info("collector: done competitor=%s sources=%d", name, len(raw_sources))
+    emit_agent_output(
+        agent="collector",
+        node="collect_competitor",
+        title="采集完成",
+        summary=f"{name} 收集到 {len(raw_sources)} 条可用来源",
+        detail="\n".join(f"- {source.title}\n  {source.url}" for source in raw_sources),
+        artifact_type="sources",
+    )
     return {
         "raw_sources": dump_models(raw_sources),
         "finished_collectors": [comp_id],
@@ -146,6 +190,14 @@ def join_collectors(state: AnalysisState) -> dict:
 
     if state.get("hitl_mode", "auto") != "interactive" or not low_source_ids:
         logger.info("join_collectors: complete low_source_count=%d", len(low_source_ids))
+        emit_agent_output(
+            agent="collector",
+            node="join_collectors",
+            title="采集汇总完成",
+            summary=f"已汇总 {len(competitors)} 家竞品来源",
+            detail="\n".join(f"- {comp_id}: {count} 条来源" for comp_id, count in counts.items()),
+            artifact_type="status",
+        )
         return {
             "current_stage": "analyzing",
             "stage_status": "Collection complete, starting analysis",

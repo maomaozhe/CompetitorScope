@@ -5,6 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import Send
 
+from src.graph.runtime_events import emit_agent_output
 from src.graph.state import AnalysisState
 from src.graph.serialization import dump_model, dump_models, raw_sources as restore_raw_sources
 from src.prompts.analyst import ANALYST_SYSTEM
@@ -23,6 +24,12 @@ logger = logging.getLogger(__name__)
 def _build_profile(raw_text: str, competitor_id: str, competitor_name: str) -> dict:
     llm = get_llm("analyst")
     logger.info("analyst: invoking LLM competitor=%s raw_chars=%d", competitor_name, len(raw_text))
+    emit_agent_output(
+        agent="analyst",
+        node="analyze_competitor",
+        title="调用结构化分析",
+        summary=f"{competitor_name} 合并来源文本 {len(raw_text)} 字符",
+    )
     resp = llm.invoke([
         SystemMessage(content=ANALYST_SYSTEM),
         HumanMessage(content=f"Competitor: {competitor_name}\n\nRaw data:\n{raw_text[:6000]}"),
@@ -73,9 +80,24 @@ def analyze_competitor(state: AnalysisState) -> dict:
     website = competitor.get("website", "")
     raw_sources = restore_raw_sources(state.get("raw_sources", []))
     logger.info("analyst: start competitor=%s sources=%d", name, len(raw_sources))
+    emit_agent_output(
+        agent="analyst",
+        node="analyze_competitor",
+        title="整理分析来源",
+        summary=f"{name} 将分析 {len(raw_sources)} 条来源",
+        detail="\n".join(f"- {source.title or source.url}\n  {source.url}" for source in raw_sources),
+        artifact_type="sources",
+    )
 
     if not raw_sources:
         logger.info("analyst: no sources competitor=%s", name)
+        emit_agent_output(
+            agent="analyst",
+            node="analyze_competitor",
+            title="跳过结构化分析",
+            summary=f"{name} 没有可用来源",
+            artifact_type="profile",
+        )
         return {"finished_analysts": [comp_id]}
 
     # Combine all text
@@ -86,6 +108,13 @@ def analyze_competitor(state: AnalysisState) -> dict:
 
     data = _build_profile(combined, comp_id, name)
     logger.info("analyst: parsed profile competitor=%s features=%d", name, len(data.get("features", [])))
+    emit_agent_output(
+        agent="analyst",
+        node="analyze_competitor",
+        title="提取结构化证据",
+        summary=f"{name} 提取 {len(data.get('features', []))} 个功能点和 {len(data.get('evidence', []))} 条证据",
+        artifact_type="profile",
+    )
 
     # Build profile
     features = [
@@ -137,6 +166,14 @@ def analyze_competitor(state: AnalysisState) -> dict:
             competitor_id=comp_id,
         ))
 
+    emit_agent_output(
+        agent="analyst",
+        node="analyze_competitor",
+        title="结构化 profile 完成",
+        summary=f"{name} profile 已生成，证据 {len(all_evidence)} 条",
+        detail=profile.one_liner,
+        artifact_type="profile",
+    )
     return {
         "competitor_profiles": [dump_model(profile)],
         "evidence_items": dump_models(all_evidence),
@@ -146,4 +183,11 @@ def analyze_competitor(state: AnalysisState) -> dict:
 
 def join_analysts(state: AnalysisState) -> dict:
     """Barrier: fires once after all analysts are done, triggers comparator."""
+    emit_agent_output(
+        agent="analyst",
+        node="join_analysts",
+        title="分析汇总完成",
+        summary=f"已完成 {len(state.get('competitor_profiles', []))} 个竞品 profile",
+        artifact_type="status",
+    )
     return {}

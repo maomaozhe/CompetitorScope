@@ -26,6 +26,17 @@ async function screenshot(page, name) {
   return path;
 }
 
+async function waitForExpectedText(page, expected, timeoutMs = 5000) {
+  const start = Date.now();
+  let text = "";
+  while (Date.now() - start < timeoutMs) {
+    text = await page.locator("body").innerText().catch(() => "");
+    if (expected.every((item) => text.includes(item))) return text;
+    await page.waitForTimeout(250);
+  }
+  return text || await page.locator("body").innerText().catch(() => "");
+}
+
 async function runStage(browser, stage) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const runId = `mock-${stage.name}`;
@@ -78,14 +89,16 @@ async function runStage(browser, stage) {
 
   const page = await context.newPage();
   await page.goto(`${FRONTEND}/analysis/${runId}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(stage.waitMs || 1200);
+  const textBeforeClick = await waitForExpectedText(page, stage.expected, stage.waitMs || 5000);
 
   if (stage.clickTab) {
     await page.getByRole("button", { name: stage.clickTab, exact: true }).click();
-    await page.waitForTimeout(250);
+    await waitForExpectedText(page, stage.expected, stage.waitMs || 5000);
   }
 
-  const text = await page.locator("body").innerText();
+  const text = stage.clickTab
+    ? await page.locator("body").innerText()
+    : textBeforeClick;
   const liveHeadingBox = await page.getByRole("heading", { name: "Agent 实时输出" }).boundingBox().catch(() => null);
   const evidence = await screenshot(page, stage.name);
   await context.close();

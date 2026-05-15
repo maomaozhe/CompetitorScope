@@ -18,6 +18,7 @@ type HitlRequest = {
   options?: Record<string, unknown>;
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;
+  created_at?: number;
 };
 
 type AgentOutput = {
@@ -63,7 +64,12 @@ export function useSSE(runId: string | null) {
           setPendingHitl(null);
           return;
         }
-        setPendingHitl(data.pending && data.payload ? data.payload as HitlRequest : null);
+        setPendingHitl(data.pending && data.payload ? {
+          ...(data.payload as HitlRequest),
+          created_at: typeof data.created_at === "number"
+            ? data.created_at
+            : (data.payload as HitlRequest).created_at,
+        } : null);
       })
       .catch(() => {});
   }, [runId, setPendingHitl]);
@@ -74,6 +80,9 @@ export function useSSE(runId: string | null) {
       .then(async (data) => {
         data.agents?.forEach((agent) => {
           updateAgent(agent.id, { status: agent.status, message: agent.message });
+        });
+        data.agent_outputs?.forEach((output) => {
+          appendAgentOutput(output);
         });
         if (data.done) {
           setPendingHitl(null);
@@ -88,7 +97,7 @@ export function useSSE(runId: string | null) {
         }
       })
       .catch(() => {});
-  }, [runId, updateAgent, setComplete, setEvidenceItems, setPendingHitl]);
+  }, [runId, updateAgent, appendAgentOutput, setComplete, setEvidenceItems, setPendingHitl]);
 
   const connect = useCallback(() => {
     if (!runId || esRef.current) return;
@@ -131,7 +140,11 @@ export function useSSE(runId: string | null) {
       try {
         if (isCompleteRef.current) return;
         const data = JSON.parse(e.data) as HitlRequest;
-        setPendingHitl({ ...data, created_at: Date.now() / 1000 });
+        // 保留服务端 created_at，只在首次设置（服务端没传时用客户端时间）
+        setPendingHitl({
+          ...data,
+          created_at: data.created_at ?? Date.now() / 1000,
+        });
       } catch {}
     });
 
@@ -144,6 +157,10 @@ export function useSSE(runId: string | null) {
     });
 
     es.addEventListener("complete", async () => {
+      es.close();
+      if (esRef.current === es) {
+        esRef.current = null;
+      }
       setPendingHitl(null);
       try {
         const data = await api.getEvidence(runId);

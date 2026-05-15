@@ -7,6 +7,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+from src.graph.runtime_events import emit_agent_output, emit_report_chunk
 from src.graph.state import AnalysisState
 from src.graph.serialization import (
     comparison_result,
@@ -63,6 +64,32 @@ def _restore_comparison(raw_comparison: Any):
         return None
 
 
+def _content_text(message: Any) -> str:
+    return extract_text(getattr(message, "content", message))
+
+
+def _generate_report_markdown(llm: Any, messages: list[Any]) -> str:
+    stream = getattr(llm, "stream", None)
+    if callable(stream):
+        chunks: list[str] = []
+        try:
+            for chunk in stream(messages):
+                text = _content_text(chunk)
+                if not text:
+                    continue
+                chunks.append(text)
+                emit_report_chunk(text)
+            if chunks:
+                return "".join(chunks)
+        except Exception as exc:
+            logger.info("writer: streaming unavailable, falling back to invoke: %s", exc)
+
+    resp = llm.invoke(messages)
+    markdown = _content_text(resp)
+    emit_report_chunk(markdown)
+    return markdown
+
+
 def writer_node(state: AnalysisState) -> dict:
     profiles = competitor_profiles(state.get("competitor_profiles", []))
     raw_comparison = state.get("comparison_result")
@@ -99,6 +126,13 @@ def writer_node(state: AnalysisState) -> dict:
 
     llm = get_llm("writer")
     logger.info("writer: invoking LLM")
+    emit_agent_output(
+        agent="writer",
+        node="writer",
+        title="准备生成报告",
+        summary=f"正在整合 {len(profiles)} 个竞品 profile 和 {len(evidence)} 条证据",
+        artifact_type="report",
+    )
     feature_table = (
         comparison.feature_table
         if comparison
@@ -119,7 +153,7 @@ def writer_node(state: AnalysisState) -> dict:
         if comparison
         else _comparison_field(raw_comparison, "recommendations")
     )
-    resp = llm.invoke([
+    messages = [
         SystemMessage(content=WRITER_SYSTEM),
         HumanMessage(content=f"""Report outline:
 {outline}
@@ -139,12 +173,21 @@ Key insights:
 Recommendations:
 {_list_text(recommendations) or 'N/A'}
 """),
-    ])
+    ]
+
+    emit_agent_output(
+        agent="writer",
+        node="writer",
+        title="开始撰写 Markdown 报告",
+        summary="报告内容将按 chunk 渐进输出",
+        artifact_type="report",
+    )
+    content_markdown = _generate_report_markdown(llm, messages)
 
     report = Report(
         title=f"竞品分析报告: {state['query']}",
         executive_summary="见下方报告全文",
-        content_markdown=extract_text(resp.content),
+        content_markdown=content_markdown,
         bibliography=bibliography,
     )
     logger.info("writer: done report_chars=%d bibliography=%d", len(report.content_markdown), len(bibliography))

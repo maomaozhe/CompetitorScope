@@ -28,6 +28,8 @@ export interface HitlRequest {
   default_response?: Record<string, unknown>;
   timeout_seconds?: number;
   created_at?: number;
+  client_deadline_ms?: number;
+  countdown_key?: string;
 }
 
 export interface AgentOutput {
@@ -80,6 +82,32 @@ const DEFAULT_AGENTS: AgentInfo[] = [
   { id: "writer", name: "Writer", emoji: "✍️", status: "idle", message: "等待启动" },
 ];
 
+function hitlStableKey(req: HitlRequest): string {
+  if (req.interrupt_id) return req.interrupt_id;
+  return `${req.type}:${req.created_at ?? "unknown"}`;
+}
+
+function withStableCountdown(req: HitlRequest, previous: HitlRequest | null): HitlRequest {
+  const key = hitlStableKey(req);
+  if (previous?.countdown_key === key && previous.client_deadline_ms) {
+    return {
+      ...req,
+      created_at: req.created_at ?? previous.created_at,
+      countdown_key: key,
+      client_deadline_ms: previous.client_deadline_ms,
+    };
+  }
+
+  const now = Date.now();
+  const timeoutSeconds = req.timeout_seconds ?? 120;
+  const elapsedSeconds = req.created_at ? Math.max(0, now / 1000 - req.created_at) : 0;
+  return {
+    ...req,
+    countdown_key: key,
+    client_deadline_ms: now + Math.max(0, timeoutSeconds - elapsedSeconds) * 1000,
+  };
+}
+
 const AnalysisContext = createContext<AnalysisContextType | null>(null);
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
@@ -125,7 +153,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const setComplete = useCallback(() => setIsComplete(true), []);
 
   const setPendingHitl = useCallback((req: HitlRequest | null) => {
-    setPendingHitlState(req);
+    setPendingHitlState((previous) => (req ? withStableCountdown(req, previous) : null));
   }, []);
 
   const setEvidenceItems = useCallback((items: EvidenceItem[]) => {

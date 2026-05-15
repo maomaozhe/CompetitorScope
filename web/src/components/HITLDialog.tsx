@@ -2,21 +2,33 @@
 
 import { useState, useEffect } from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
+import type { HitlRequest } from "@/contexts/AnalysisContext";
 import { api } from "@/lib/api";
 
-function useCountdown(timeoutSeconds: number, createdAt: number) {
-  const [remaining, setRemaining] = useState(timeoutSeconds);
+function useCountdown(deadlineMs: number, countdownKey: string) {
+  const [remaining, setRemaining] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const elapsed = Date.now() / 1000 - createdAt;
-      const left = Math.max(0, timeoutSeconds - elapsed);
-      setRemaining(Math.floor(left));
-      if (left <= 0) clearInterval(interval);
+    let lastRemaining = Number.MAX_SAFE_INTEGER;
+    const update = () => {
+      const left = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      const next = Math.min(lastRemaining, left);
+      lastRemaining = next;
+      setRemaining(next);
+      return next;
+    };
+
+    const firstTick = window.setTimeout(update, 0);
+    const interval = window.setInterval(() => {
+      const next = update();
+      if (next <= 0) window.clearInterval(interval);
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [timeoutSeconds, createdAt]);
+    return () => {
+      window.clearTimeout(firstTick);
+      window.clearInterval(interval);
+    };
+  }, [deadlineMs, countdownKey]);
 
   return remaining;
 }
@@ -336,19 +348,23 @@ function CollectorSupplementDialog({
   );
 }
 
+function hitlStableKey(hitl: HitlRequest): string {
+  if (hitl.interrupt_id) return hitl.interrupt_id;
+  return `${hitl.type}:${hitl.created_at ?? "unknown"}`;
+}
+
 export function HITLDialog() {
   const { runId, pendingHitl, setPendingHitl } = useAnalysis();
   const [localHitl, setLocalHitl] = useState<typeof pendingHitl>(null);
   const [error, setError] = useState("");
 
-  if (!pendingHitl && !localHitl) return null;
-
   const hitl = pendingHitl || localHitl;
-  if (!hitl) return null;
+  const currentHitlKey = hitl?.countdown_key || (hitl ? hitlStableKey(hitl) : "");
 
-  const timeoutSeconds = hitl.timeout_seconds || 120;
-  const createdAt = hitl.created_at || Date.now() / 1000;
-  const remaining = useCountdown(timeoutSeconds, createdAt);
+  // Always call hooks unconditionally — Rules of Hooks require consistent call order
+  const remaining = useCountdown(hitl?.client_deadline_ms || 0, currentHitlKey);
+
+  if (!pendingHitl && !localHitl) return null;
 
   const handleClose = () => {
     setError("");
