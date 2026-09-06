@@ -1,0 +1,54 @@
+{
+  "schema_version": "official-pricing-eval.v1",
+  "as_of": "2026-09-06T00:00:00Z",
+  "cases": [
+    {
+      "id": "github-copilot-core-prices",
+      "competitor": "GitHub Copilot",
+      "official_domain": "github.com",
+      "pricing_url": "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-copilot/about-billing-for-github-copilot",
+      "fixture": "github-copilot.html",
+      "expected": [
+        ["Copilot Free", "free", null, null, "unknown", null],
+        ["Copilot Pro", "fixed", "10", "USD", "month", null],
+        ["Copilot Pro", "fixed", "100", "USD", "year", null],
+        ["Copilot Pro+", "fixed", "39", "USD", "month", null],
+        ["Copilot Pro+", "fixed", "390", "USD", "year", null]
+      ]
+    },
+    {
+      "id": "cursor-free-and-enterprise",
+      "competitor": "Cursor",
+      "official_domain": "cursor.com",
+      "pricing_url": "https://cursor.com/pricing",
+      "fixture": "cursor.html",
+      "expected": [
+        ["Hobby", "free", null, null, "unknown", null],
+        ["Enterprise", "contact_sales", null, null, "unknown", null]
+      ]
+    },
+    {
+      "id": "replit-annual-qualifier",
+      "competitor": "Replit",
+      "official_domain": "replit.com",
+      "pricing_url": "https://replit.com/pricing",
+      "fixture": "replit.html",
+      "expected": [
+        ["Starter", "free", null, null, "unknown", null],
+        ["Enterprise", "contact_sales", null, null, "unknown", null]
+      ],
+      "expected_issue_codes": ["currency-ambiguous"]
+    },
+    {
+      "id": "claude-ambiguous-dollar",
+      "competitor": "Claude",
+      "official_domain": "claude.com",
+      "pricing_url": "https://support.claude.com/en/articles/11049762-choose-a-claude-plan",
+      "fixture": "claude.html",
+      "expected": [
+        ["Free", "free", null, null, "unknown", null]
+      ],
+      "expected_issue_codes": ["currency-ambiguous"]
+    }
+  ]
+}
