@@ -1,6 +1,6 @@
 # 进度追踪 (Progress)
 
-> 最后更新：2026-05-14
+> 最后更新：2026-09-16
 
 ## 当前状态
 
@@ -13,6 +13,17 @@ Pipeline 全流程（Planner → HITL → Collector → Analyst → Comparator �
 - Agent 实时输出 SSE + HITL 强化完成
 
 **下一步**：Step 9 Demo 打磨（进行中：流式输出 + HITL 倒计时待修复）
+
+## 2026-09-16：V1 可观测性与评测回放
+
+- 新增 SQLite 追加式 trace ledger，持久化 run、span、统一事件和状态快照。
+- 新增经脱敏的内容寻址 Artifact Store，保存 LLM、工具和大型 state payload。
+- SSE 改为读取持久事件，支持多客户端与 `Last-Event-ID` 补发。
+- 五个 Agent、LLM、search/scrape、HITL 和报告流均有结构化事件；关键业务节点产出 `decision.recorded`。
+- 新增固定外部工具结果的 Eval Case 和 Candidate 重跑，支持模型、参数及 Prompt 变体。
+- 新增 `/observability` 运行列表和详情页，支持时间线回放、决策/快照/Artifact 下钻及 Baseline/Candidate 对比。
+- 普通 trace 默认保留 30 天，Eval 引用长期保留；进程重启后未完成 run 标记为 `interrupted`。
+- 验收证据位于 `docs/review/observability/`，详细契约见 `docs/v1/OBSERVABILITY.md`。
 
 ---
 

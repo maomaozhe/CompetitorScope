@@ -364,7 +364,7 @@ export function HITLDialog() {
   // Always call hooks unconditionally — Rules of Hooks require consistent call order
   const remaining = useCountdown(hitl?.client_deadline_ms || 0, currentHitlKey);
 
-  if (!pendingHitl && !localHitl) return null;
+  if (!hitl) return null;
 
   const handleClose = () => {
     setError("");

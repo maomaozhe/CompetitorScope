@@ -12,11 +12,15 @@ from collections.abc import Callable
 from typing import Any
 
 
-EventEmitter = Callable[[str, dict[str, Any]], None]
+EventEmitter = Callable[[str, dict[str, Any]], Any]
 
 _emitter: contextvars.ContextVar[EventEmitter | None] = contextvars.ContextVar(
     "analysis_event_emitter",
     default=None,
+)
+_event_context: contextvars.ContextVar[dict[str, str]] = contextvars.ContextVar(
+    "analysis_event_context",
+    default={},
 )
 
 
@@ -28,11 +32,25 @@ def reset_event_emitter(token: contextvars.Token) -> None:
     _emitter.reset(token)
 
 
-def emit_event(event: str, data: dict[str, Any]) -> None:
+def set_event_context(
+    *, agent: str, node: str, parent_span_id: str | None = None
+) -> contextvars.Token:
+    context = {"agent": agent, "node": node}
+    if parent_span_id:
+        context["parent_span_id"] = parent_span_id
+    return _event_context.set(context)
+
+
+def reset_event_context(token: contextvars.Token) -> None:
+    _event_context.reset(token)
+
+
+def emit_event(event: str, data: dict[str, Any]) -> Any:
     emitter = _emitter.get()
     if emitter is None:
-        return
-    emitter(event, data)
+        return None
+    context = _event_context.get()
+    return emitter(event, {**context, **data})
 
 
 def emit_agent_output(

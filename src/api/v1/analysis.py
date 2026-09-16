@@ -9,7 +9,9 @@ from sse_starlette.sse import EventSourceResponse
 from src.api.v1.runtime import (
     RUN_STORE,
     create_run,
+    cancel_run,
     get_event_history,
+    get_observability_repository,
     initial_state,
     run_until_pause,
     wait_for_events_after,
@@ -178,11 +180,7 @@ def _agent_outputs_from_state(run_id: str, state: dict) -> list[dict]:
 
 
 def _agent_outputs_for_response(run_id: str, state: dict) -> list[dict]:
-    outputs_by_id = {
-        output.get("id"): output
-        for output in _agent_outputs_from_state(run_id, state)
-        if output.get("id")
-    }
+    outputs_by_id = {}
     for output in _agent_outputs_from_history(run_id):
         output_id = output.get("id")
         if output_id:
@@ -207,7 +205,8 @@ async def create_analysis(req: CreateAnalysisRequest, background_tasks: Backgrou
 
 @router.get("/analysis/{run_id}/stream")
 async def stream_analysis(run_id: str, request: Request):
-    if run_id not in RUN_STORE:
+    repository = get_observability_repository()
+    if run_id not in RUN_STORE and repository.get_run(run_id) is None:
         raise HTTPException(404, "Run not found")
 
     async def event_generator():
@@ -228,7 +227,12 @@ async def stream_analysis(run_id: str, request: Request):
                 }
 
             run = RUN_STORE.get(run_id)
-            done = run and run.get("done")
+            persisted_run = repository.get_run(run_id)
+            done = bool(run and run.get("done")) or bool(
+                persisted_run
+                and persisted_run.get("status")
+                in {"completed", "failed", "cancelled", "interrupted"}
+            )
             if done:
                 has_unread = any(
                     item.get("seq", 0) > last_seq
@@ -261,6 +265,5 @@ async def delete_analysis(run_id: str):
     """Cancel a running analysis and clean up its state."""
     if run_id not in RUN_STORE:
         raise HTTPException(404, "Not found")
-    RUN_STORE[run_id]["done"] = True
-    RUN_STORE[run_id]["pending_interrupt"] = None
+    cancel_run(run_id)
     return {"run_id": run_id, "status": "cancelled"}

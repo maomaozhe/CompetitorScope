@@ -14,14 +14,15 @@ async def test_sse_history_is_per_connection_and_not_consumed():
         first_client = await runtime.wait_for_events_after(run_id, 0, timeout=0.01)
         second_client = await runtime.wait_for_events_after(run_id, 0, timeout=0.01)
 
-        assert [event["seq"] for event in first_client] == [1]
-        assert [event["seq"] for event in second_client] == [1]
+        assert [event["seq"] for event in first_client] == [1, 2, 3, 4]
+        assert [event["seq"] for event in second_client] == [1, 2, 3, 4]
+        assert first_client[-1]["event"] == "agent_start"
 
         runtime._emit_event(run_id, "agent_complete", {"agent": "planner"})
         next_events = await runtime.wait_for_events_after(run_id, first_client[-1]["seq"], timeout=0.01)
 
         assert [event["event"] for event in next_events] == ["agent_complete"]
-        assert next_events[0]["seq"] == 2
+        assert next_events[0]["seq"] == 5
     finally:
         runtime.RUN_STORE.pop(run_id, None)
         runtime._EVENT_HISTORY.pop(run_id, None)
@@ -29,7 +30,7 @@ async def test_sse_history_is_per_connection_and_not_consumed():
         runtime._EVENT_SEQ.pop(run_id, None)
 
 
-def test_analysis_status_synthesizes_agent_outputs_from_state():
+def test_analysis_status_uses_persisted_agent_outputs_only():
     run_id = "status-output-snapshot-test"
     state = runtime.initial_state(run_id=run_id, query="AI IDE", hitl_mode="auto")
     runtime.create_run(state)
@@ -61,15 +62,16 @@ def test_analysis_status_synthesizes_agent_outputs_from_state():
         })
         runtime.RUN_STORE[run_id]["state"] = state
 
+        runtime._emit_event(run_id, "agent_output", {
+            "id": "persisted",
+            "agent": "planner",
+            "node": "planner_outline",
+            "title": "Recorded",
+            "summary": "From the ledger",
+        })
         outputs = _agent_outputs_for_response(run_id, state)
 
-        assert {output["agent"] for output in outputs} == {
-            "planner",
-            "collector",
-            "analyst",
-            "comparator",
-        }
-        assert any(output["title"] == "准备横向对比" for output in outputs)
+        assert [output["id"] for output in outputs] == ["persisted"]
     finally:
         runtime.RUN_STORE.pop(run_id, None)
         runtime._EVENT_HISTORY.pop(run_id, None)

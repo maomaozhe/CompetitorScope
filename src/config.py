@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     max_search_rounds: int = 3
     data_dir: str = "data"
     database_url: str = ""  # e.g. "sqlite+aiosqlite:///./competitorscope.db"
+    observability_database_path: str = "data/observability/observability.db"
+    observability_artifact_dir: str = "data/observability/artifacts"
+    trace_retention_days: int = 30
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
