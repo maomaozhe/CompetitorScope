@@ -1,8 +1,10 @@
 # 进度追踪 (Progress)
 
-> 最后更新：2026-09-16
+> 最后更新：2026-09-28
 
 ## 当前状态
+
+**独立 repo_research_poc（2026-09-28）**：固定快照源码问答 POC 已有 CLI 和仅绑定本机的 Web 研究页；只读检索、逐字引用校验、运行记录、历史回看和后台任务均位于独立目录，不影响 V1。宽问题已在真实 deepagents 快照返回 `ok`，但仍耗时约 305 秒、27 次工具调用；低 token 上限可触发 JSON 重试，极低上限下两次均截断并留痕。POC 的 pytest、Web HTTP 测试及浏览器桌面/窄屏检查见 `repo_research_poc/README.md` 与 `docs/review/repo-research-web/`。业务标准答案、私有仓库验收和 LangSmith 在线实验仍待执行。
 
 **里程碑 M4：Step 7/8 API + 前端主链路 — 已完成**
 

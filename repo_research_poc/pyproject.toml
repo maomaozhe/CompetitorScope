@@ -1,0 +1,22 @@
+[project]
+name = "competitorscope-repo-research-poc"
+version = "0.1.0"
+description = "Isolated, read-only repository research proof of concept"
+requires-python = ">=3.11"
+dependencies = [
+    "deepagents==0.7.19",
+    "langchain-anthropic==1.7.4",
+    "langsmith==0.14.1",
+    "pydantic==2.13.5",
+    "httpx[socks]==0.28.1",
+]
+
+[dependency-groups]
+dev = ["pytest==9.0.3"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Repo Research · 源码研究台</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">R<span>→</span></span><span>REPO<br>RESEARCH</span></div>
+      <div class="rail-label">WORKSPACE / 01</div>
+      <nav><a class="active" href="#new-run">研究工作台</a><a href="#history">运行记录</a><a href="#about">边界说明</a></nav>
+      <div class="rail-bottom"><span class="live-dot"></span> LOCAL ONLY <small>127.0.0.1</small></div>
+    </aside>
+
+    <main>
+      <header class="topbar"><span>CompetitorScope <b>/</b> repo_research_poc</span><span class="top-status">独立 POC <i></i> 源码只读</span></header>
+      <section class="hero">
+        <div class="eyebrow">SOURCE INTELLIGENCE / FIXED SNAPSHOT</div>
+        <h1>从源码找到<br><em>有依据的答案。</em></h1>
+        <p>指定本地仓库快照与 Commit SHA，提出一个问题。Agent 读取隔离副本；每条代码引用都要经过逐字校验。</p>
+        <div class="hero-rule"><span>01 / 输入快照</span><span>02 / 检索源码</span><span>03 / 核验引用</span></div>
+      </section>
+
+      <div class="workspace">
+        <section class="panel form-panel" id="new-run">
+          <div class="section-heading"><div><div class="section-kicker">NEW RESEARCH</div><h2>发起源码研究</h2></div><span class="section-index">01</span></div>
+          <form id="research-form">
+            <label for="snapshot">仓库快照目录 <span>必填</span></label>
+            <input id="snapshot" name="snapshot" type="text" placeholder="E:\snapshots\project-at-commit" required autocomplete="off">
+            <p class="field-hint">输入已经固定版本的本地目录；不会自动发现或下载仓库。</p>
+            <label for="commit">Commit SHA <span>40 位十六进制</span></label>
+            <input id="commit" name="commit" type="text" pattern="[0-9a-fA-F]{40}" minlength="40" maxlength="40" placeholder="0123456789abcdef0123456789abcdef01234567" required autocomplete="off" spellcheck="false">
+            <label for="question">你的问题 <span>建议聚焦一个流程或函数</span></label>
+            <textarea id="question" name="question" rows="4" placeholder="例如：购物车总价如何计算？请引用实现代码。" required></textarea>
+            <div class="form-footer"><span id="model-name">模型配置读取中…</span><button id="submit-button" type="submit">开始研究 <span>↗</span></button></div>
+          </form>
+          <div id="form-message" class="form-message" role="status" aria-live="polite" hidden></div>
+        </section>
+
+        <section class="panel result-panel" id="result">
+          <div class="section-heading"><div><div class="section-kicker">VERIFIED RESULT</div><h2>研究结果</h2></div><span id="result-badge" class="badge neutral">等待任务</span></div>
+          <div id="empty-result" class="empty-state"><div class="empty-symbol">{ }</div><h3>答案从证据开始</h3><p>提交问题，或从下方打开已有运行记录。</p></div>
+          <div id="result-content" hidden>
+            <div class="result-meta" id="result-meta"></div>
+            <div id="answer-block" hidden><h3>回答</h3><div id="answer-text" class="answer-text"></div></div>
+            <div id="citations-block" hidden><h3>代码引用 <span id="citation-count"></span></h3><div id="citations-list"></div></div>
+            <div id="unresolved-block" hidden><h3>未解决问题</h3><ul id="unresolved-list"></ul></div>
+            <div id="diagnostics-block" hidden><h3>运行诊断</h3><div id="diagnostics-list"></div></div>
+            <details class="audit"><summary>审计信息与工具调用</summary><div id="audit-content"></div></details>
+          </div>
+        </section>
+      </div>
+
+      <section class="history-section" id="history">
+        <div class="section-heading"><div><div class="section-kicker">RUN ARCHIVE</div><h2>运行记录</h2></div><button id="refresh-history" class="text-button" type="button">刷新 ↗</button></div>
+        <div id="history-list" class="history-list"><p class="history-empty">正在读取本地记录…</p></div>
+      </section>
+
+      <section class="about" id="about"><span>安全边界</span><p>默认只开放 ls、glob、grep、read_file。源码只读、工作区分离；无 Shell、代码执行、仓库发现或自动上传 LangSmith。模型服务会接收检索到的源码片段。</p></section>
+      <footer>REPO RESEARCH POC <span>·</span> 固定快照 / 可审计回答</footer>
+    </main>
+  </div>
+</body>
+</html>

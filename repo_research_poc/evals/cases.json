@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "entry-point",
+      "question": "Where is the repository's main application entry point, and what does it initialize?",
+      "review_status": "pending",
+      "reference_answer": null
+    },
+    {
+      "id": "configuration",
+      "question": "Which source file defines runtime configuration, and how is it loaded?",
+      "review_status": "pending",
+      "reference_answer": null
+    },
+    {
+      "id": "error-path",
+      "question": "What happens when a research tool fails? Cite the handling code.",
+      "review_status": "pending",
+      "reference_answer": null
+    }
+  ]
+}
