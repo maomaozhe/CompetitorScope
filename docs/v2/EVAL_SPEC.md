@@ -1,5 +1,7 @@
 # CompetitorScope V2 Evaluation Specification
 
+> **封存方案**：这里的定价评测规格属于此前路线；当前源码研究评测见[产品规格](REPOSITORY_RESEARCH.md)。
+
 ## Current
 
 V1 测试主要验证 workflow、HITL、SSE 和报告格式，没有固定官方定价 snapshot 或 claim-level 质量指标。V2 eval dataset 和 graders 尚未实现。

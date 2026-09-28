@@ -1,5 +1,7 @@
 # V1 Observability and Evaluation Replay
 
+> Archived V1 documentation. See the [archive index](ARCHIVE.md) and the [current repository-research specification](../v2/REPOSITORY_RESEARCH.md).
+
 V1 uses a local, append-only trace ledger for runtime inspection and evaluation. The ledger is independent from LangGraph checkpoints: checkpoints resume workflow execution, while the ledger preserves audit, replay, and comparison data.
 
 ## Storage

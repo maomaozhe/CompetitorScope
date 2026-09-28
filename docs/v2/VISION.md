@@ -1,5 +1,7 @@
 # CompetitorScope V2 Vision
 
+> **封存方案**：本页记录此前的官方定价证据链路线，其中“必须”“Planned”等表述仅属于当时方案。当前开发集中在 [`repo_research_poc`](../../repo_research_poc/README.md)，见[源码研究规格](REPOSITORY_RESEARCH.md)和[封存索引](../v1/ARCHIVE.md)。
+
 ## Current
 
 CompetitorScope V1 是基于 LangGraph 的竞品分析 Baseline，提供竞品发现、网页采集、画像分析、横向比较、Markdown 报告、HITL 和 SSE 事件流。V1 必须继续保持可运行，用于行为回归和 V2 效果对照。

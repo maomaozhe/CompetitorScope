@@ -1,5 +1,7 @@
 # ADR-0001: Adopt an independent evidence-first pipeline
 
+> **历史决策，现已封存**：此 ADR 描述此前 V2 官方定价方案，不再约束 `repo_research_poc` 的当前路线。见[封存索引](../v1/ARCHIVE.md)。
+
 - Status: Accepted
 - Date: 2026-09-06
 - Owners: CompetitorScope maintainers

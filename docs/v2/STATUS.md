@@ -1,5 +1,7 @@
 # CompetitorScope V2 Status
 
+> **封存状态记录**：下列进度和“Next milestone”反映 2026-09-06 的官方定价路线，不是当前排期。当前开发集中在 [`repo_research_poc`](../../repo_research_poc/README.md)，见[文档导航](README.md)。
+
 ## Current
 
 更新时间：2026-09-06

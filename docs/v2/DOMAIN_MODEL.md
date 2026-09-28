@@ -1,5 +1,7 @@
 # CompetitorScope V2 Domain Model
 
+> **封存方案**：这里的定价领域模型属于此前路线，不是源码研究 POC 的当前契约。见[文档导航](README.md)。
+
 ## Current
 
 V1 的 `RawSource`、`EvidenceItem`、`CompetitorProfile` 和 `Report` 继续服务于 Baseline。它们不作为 V2 类型的父类，也不在 CS-001 中原地扩展。

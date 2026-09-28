@@ -1,5 +1,7 @@
 # CompetitorScope V2 Architecture
 
+> **封存方案**：这里描述此前的官方定价架构，不是 `repo_research_poc` 的当前实施计划。见[文档导航](README.md)。
+
 ## Current
 
 V1 通过 FastAPI、进程内运行态和 LangGraph 组织 Planner、Collector、Analyst、Comparator、Writer。V1 是现有可运行 Baseline，保持原入口、state、nodes、domain model 和前端行为不变。

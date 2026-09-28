@@ -1,5 +1,7 @@
 # CS-001: Official Pricing Evidence Slice
 
+> **封存任务**：此任务记录此前的官方定价纵向切片及其验收，不属于当前 `repo_research_poc` 待办。见[封存索引](../v1/ARCHIVE.md)。
+
 - Status: Complete
 - Priority: P0 for V2
 - Decision: [ADR-0001](../adr/0001-evidence-first-pipeline.md)

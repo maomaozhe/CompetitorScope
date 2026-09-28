@@ -4,9 +4,9 @@
 
 ## 项目地图
 
-- `src/`：现有 V1 FastAPI、LangGraph 流程与服务；`web/`：现有 Next.js 前端。
-- `src/v2/`、`docs/v2/`：逐步演进的研究架构，按实际文件判断完成度。
-- `repo_research_poc/`：独立的固定快照源码问答 POC。其 Agent 只读临时副本，默认文件工具为 `ls`、`glob`、`grep`、`read_file`；不向 Agent 开放宿主 Shell 或执行被研究仓库代码。
+- `repo_research_poc/`：当前唯一主动开发的产品线；现有固定快照源码问答、Web/CLI、测试与锁定依赖均在此。其 Agent 只读临时副本，默认文件工具为 `ls`、`glob`、`grep`、`read_file`；不向 Agent 开放宿主 Shell 或执行被研究仓库代码。
+- `src/`、`web/`：已封存的 V1 竞品分析实现；`src/v2/`：此前官方定价证据链方案。保留供历史查阅，不把其待办当作当前开发任务。封存索引见 `docs/v1/ARCHIVE.md`。
+- `docs/v2/REPOSITORY_RESEARCH.md` 与 `doc/PRD.md`：当前源码研究产品方向；`docs/v2/` 其他旧方案需先核对文档状态。
 - `doc/memory-bank/progress.md` 和各模块 README 记录进展；具体状态以代码、测试与当前运行记录为准，避免照搬过时描述。
 
 ## 推进方式
@@ -25,6 +25,6 @@
 
 ## 常用验证
 
-- 主项目：`uv run --frozen pytest tests/ -q`。
+- 封存代码仅在确需修改时运行对应旧版测试：`uv run --frozen pytest tests/ -q`。
 - 独立 POC：在 `repo_research_poc/` 执行 `uv run --locked pytest -q`、`uv run --locked ruff check repo_research_poc tests`、`uv lock --check`。
 - 修改 `web/` 前读取该目录的 `AGENTS.md` 和已安装 Next.js 文档；按实际影响运行前端测试与浏览器检查。

@@ -4,7 +4,11 @@
 
 ## 当前状态
 
-**独立 repo_research_poc（2026-09-28）**：固定快照源码问答 POC 已有 CLI 和仅绑定本机的 Web 研究页；只读检索、逐字引用校验、运行记录、历史回看和后台任务均位于独立目录，不影响 V1。宽问题已在真实 deepagents 快照返回 `ok`，但仍耗时约 305 秒、27 次工具调用；低 token 上限可触发 JSON 重试，极低上限下两次均截断并留痕。POC 的 pytest、Web HTTP 测试及浏览器桌面/窄屏检查见 `repo_research_poc/README.md` 与 `docs/review/repo-research-web/`。业务标准答案、私有仓库验收和 LangSmith 在线实验仍待执行。
+**产品方向（2026-09-28）**：原 V1 竞品分析和此前 `src/v2/` 官方定价方案已封存，保留代码及历史记录；新功能集中在 `repo_research_poc/`。当前能力、后续仓库定位/链路追踪/跨仓比较与 RAG 待定决策分别见 `repo_research_poc/README.md`、`doc/PRD.md` 和 `docs/v2/REPOSITORY_RESEARCH.md`。
+
+**repo_research_poc（2026-09-28）**：固定快照源码问答 POC 已有 CLI 和仅绑定本机的 Web 研究页；只读检索、逐字引用校验、运行记录、历史回看和后台任务均位于独立目录。宽问题已在真实 deepagents 快照返回 `ok`，但仍耗时约 305 秒、27 次工具调用；低 token 上限可触发 JSON 重试，极低上限下两次均截断并留痕。POC 的 pytest、Web HTTP 测试及浏览器桌面/窄屏检查见 `repo_research_poc/README.md` 与 `docs/review/repo-research-web/`。业务标准答案、私有仓库验收和 LangSmith 在线实验仍待执行。
+
+以下 M4、Step 9 与 V1 可观测性记录为**封存历史**，其“下一步”不再代表当前开发计划。
 
 **里程碑 M4：Step 7/8 API + 前端主链路 — 已完成**
 
